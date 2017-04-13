@@ -1,0 +1,97 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="core">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="win32">
+      <UniqueIdentifier>{3ef15e83-bc45-4ae3-89bf-be761967d304}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="unix">
+      <UniqueIdentifier>{80adc351-59b9-4a16-ad1f-fde8b52bc384}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\creature.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\game.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\main.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\protocol.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scheduler.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\work.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\cmdline.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\log.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\mem.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\win32\thread.c">
+      <Filter>win32</Filter>
+    </ClCompile>
+    <ClCompile Include="..\win32\system.c">
+      <Filter>win32</Filter>
+    </ClCompile>
+    <ClCompile Include="..\message.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\win32\network.c">
+      <Filter>win32</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server.c">
+      <Filter>core</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\thread.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\types.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\cmdline.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\log.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\mem.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\work.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\system.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\util.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\scheduler.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\message.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\network.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\server.h">
+      <Filter>core</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
