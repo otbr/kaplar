@@ -122,7 +122,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\mem.c" />
+    <ClCompile Include="..\array.c" />
     <ClCompile Include="..\cmdline.c" />
     <ClCompile Include="..\server.c" />
     <ClCompile Include="..\creature.c" />
@@ -139,7 +139,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\server.h" />
-    <ClInclude Include="..\mem.h" />
+    <ClInclude Include="..\array.h" />
     <ClInclude Include="..\cmdline.h" />
     <ClInclude Include="..\log.h" />
     <ClInclude Include="..\message.h" />

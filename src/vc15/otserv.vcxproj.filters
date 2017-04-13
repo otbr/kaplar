@@ -37,9 +37,6 @@
     <ClCompile Include="..\log.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="..\mem.c">
-      <Filter>core</Filter>
-    </ClCompile>
     <ClCompile Include="..\win32\thread.c">
       <Filter>win32</Filter>
     </ClCompile>
@@ -55,6 +52,9 @@
     <ClCompile Include="..\server.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="..\array.c">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\thread.h">
@@ -67,9 +67,6 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="..\log.h">
-      <Filter>core</Filter>
-    </ClInclude>
-    <ClInclude Include="..\mem.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="..\work.h">
@@ -91,6 +88,9 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="..\server.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\array.h">
       <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>

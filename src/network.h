@@ -11,12 +11,12 @@ struct socket	*net_server_socket(int port);
 void		net_close(struct socket *sock);
 
 
-int	net_async_accept(struct socket *sock, struct socket **new_sock,
-		void (*fp)(int, int, void*), void *udata);
+int	net_async_accept(struct socket *sock,
+		void (*fp)(struct socket*, int, int, void*), void *udata);
 int	net_async_read(struct socket *sock, char *buf, int len,
-		void (*fp)(int, int, void*), void *udata);
+		void (*fp)(struct socket*, int, int, void*), void *udata);
 int	net_async_write(struct socket *sock, char *buf, int len,
-		void (*fp)(int, int, void*), void *udata);
+		void (*fp)(struct socket*, int, int, void*), void *udata);
 
 int	net_work();
 

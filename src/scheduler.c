@@ -1,7 +1,7 @@
 #include "scheduler.h"
 
 #include "work.h"
-#include "mem.h"
+#include "array.h"
 #include "types.h"
 #include "thread.h"
 #include "log.h"
@@ -18,7 +18,7 @@ struct sch_entry{
 
 // entry list
 #define MAX_LIST_SIZE 1024
-static struct mem_pool *sch_mem;
+static struct array *sch_array;
 static struct sch_entry *head;
 static long entry_count;
 
@@ -61,7 +61,7 @@ static void scheduler(void *unused)
 		arg = head->arg;
 		tmp = head;
 		head = head->next;
-		mem_pool_free(sch_mem, tmp);
+		array_del(sch_array, tmp);
 		mutex_unlock(mtx);
 
 		// dispatch task to the worker threads
@@ -72,7 +72,7 @@ static void scheduler(void *unused)
 void scheduler_init()
 {
 	// create memory pool for the entry list
-	mem_create_pool(MAX_LIST_SIZE, sizeof(struct sch_entry), &sch_mem);
+	sch_array = array_create(MAX_LIST_SIZE, sizeof(struct sch_entry));
 	head = NULL;
 	entry_count = 0;
 
@@ -100,7 +100,7 @@ void scheduler_shutdown()
 	mutex_destroy(mtx);
 
 	// release memory pool
-	mem_destroy_pool(sch_mem);
+	array_destroy(sch_array);
 }
 
 struct sch_entry *scheduler_add(long delay, void (*fp)(void *), void *arg)
@@ -116,7 +116,7 @@ struct sch_entry *scheduler_add(long delay, void (*fp)(void *), void *arg)
 	time = sys_get_tick_count() + delay;
 	mutex_lock(mtx);
 	// retrieve memory for the entry
-	entry = mem_pool_alloc(sch_mem);
+	entry = array_new(sch_array);
 	if(entry == NULL){
 		LOG_ERROR("scheduler_add: entry list is at maximum capacity (%d)", MAX_LIST_SIZE);
 		mutex_unlock(mtx);
@@ -149,7 +149,7 @@ void scheduler_rem(struct sch_entry *entry)
 
 	if(*it != NULL && *it == entry){
 		*it = (*it)->next;
-		mem_pool_free(sch_mem, entry);
+		array_del(sch_array, entry);
 	}
 	else{
 		LOG_WARNING("scheduler_rem: trying to remove invalid entry");
