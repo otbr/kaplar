@@ -138,6 +138,7 @@
     <ClCompile Include="..\work.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\protocol.h" />
     <ClInclude Include="..\server.h" />
     <ClInclude Include="..\array.h" />
     <ClInclude Include="..\cmdline.h" />

@@ -2,13 +2,12 @@
 #include "work.h"
 #include "scheduler.h"
 #include "network.h"
-#include "thread.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 
 struct socket *server;
-struct thread *thread;
 
 static void on_read(struct socket *sock, int error, int bytes_transfered, void *udata)
 {
@@ -48,6 +47,12 @@ int main(int argc, char **argv)
 
 	//
 	net_init();
+	// server = server_start(7171);
+	// info_server = server_start(7172);
+	// server_add_protocol(server, protocol_game);
+	// server_add_protocol(server, protocol_login);
+	// server_add_protocol(server, protocol_old);
+	// server_add_protocol(info_server, protocol_info);
 	server = net_server_socket(7171);
 	accept();
 	while(1) printf("work: %d\n", net_work());

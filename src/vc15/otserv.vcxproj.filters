@@ -93,5 +93,8 @@
     <ClInclude Include="..\array.h">
       <Filter>core</Filter>
     </ClInclude>
+    <ClInclude Include="..\protocol.h">
+      <Filter>core</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

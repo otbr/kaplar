@@ -1,6 +1,8 @@
 #ifndef __NETWORK_H__
 #define __NETWORK_H__
 
+#include <errno.h>
+
 struct socket;
 
 int	net_init();

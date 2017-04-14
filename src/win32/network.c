@@ -1,3 +1,5 @@
+#include "../network.h"
+
 #include "../thread.h"
 #include "../log.h"
 #include "../array.h"
@@ -8,18 +10,11 @@
 
 #include <stdio.h>
 
-// AcceptEx
-// WSARecv
-// WSASend
-// GetAcceptExSockaddrs
-// GetQueuedCompletionStatus
-// PostQueuedCompletionStatus
-
 // windows specific handles
-static struct WSAData wsa_data;
-static HANDLE iocp;
 static LPFN_ACCEPTEX _AcceptEx;
 static LPFN_GETACCEPTEXSOCKADDRS _GetAcceptExSockaddrs;
+static struct WSAData wsa_data;
+static HANDLE iocp = NULL;
 
 // socket handle
 struct socket{
@@ -32,8 +27,8 @@ struct socket{
 };
 
 #define MAX_SOCKETS 4096
-static struct array *sock_array;
-static struct mutex *sock_lock;
+static struct array *sock_array = NULL;
+static struct mutex *sock_lock = NULL;
 
 
 // async op handle
@@ -50,11 +45,28 @@ struct async_op{
 #define OP_WRITE	0x03
 
 #define MAX_ASYNC_OPS 4096
-static struct array *op_array;
-static struct mutex *op_lock;
+static struct array *op_array = NULL;
+static struct mutex *op_lock = NULL;
 
 
 // local helper functions
+static int posix_error(int error)
+{
+	switch(error){
+		case WSA_OPERATION_ABORTED:	return ECANCELED;
+		case WSAECONNABORTED:		return ECONNABORTED;
+		case WSAECONNRESET:		return ECONNRESET;
+		case WSAENETRESET:		return ENETRESET;
+		case WSAENETDOWN:		return ENETDOWN;
+		case WSAENOTCONN:		return ENOTCONN;
+		case WSAEWOULDBLOCK:		return EWOULDBLOCK;
+		case NO_ERROR:			return 0;
+
+		// generic error
+		default:			return -1;
+	}
+}
+
 static void *array_locked_new(struct array *array, struct mutex *mtx)
 {
 	void *ptr;
@@ -154,11 +166,23 @@ int net_init()
 void net_shutdown()
 {
 	// release resources
-	array_destroy(sock_array);
-	mutex_destroy(sock_lock);
+	if(sock_array != NULL){
+		array_destroy(sock_array);
+		sock_array = NULL;
+	}
+	if(sock_lock != NULL){
+		mutex_destroy(sock_lock);
+		sock_lock = NULL;
+	}
 
-	array_destroy(op_array);
-	mutex_destroy(op_lock);
+	if(op_array != NULL){
+		array_destroy(op_array);
+		op_array = NULL;
+	}
+	if(op_lock != NULL){
+		mutex_destroy(op_lock);
+		op_lock = NULL;
+	}
 
 	// close iocp
 	if(iocp != NULL){
@@ -257,10 +281,10 @@ int net_async_accept(struct socket *sock,
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_accept: AcceptEx failed (error = %d)", error);
 			array_locked_del(op_array, op_lock, op);
-			return 0;
+			return -1;
 		}
 	}
-	return 1;
+	return 0;
 }
 
 int net_async_read(struct socket *sock, char *buf, int len,
@@ -287,10 +311,10 @@ int net_async_read(struct socket *sock, char *buf, int len,
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_read: WSARecv failed (error = %d)", error);
 			array_locked_del(sock_array, sock_lock, op);
-			return 0;
+			return -1;
 		}
 	}
-	return 1;
+	return 0;
 }
 
 int net_async_write(struct socket *sock, char *buf, int len,
@@ -315,10 +339,10 @@ int net_async_write(struct socket *sock, char *buf, int len,
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_write: WSASend failed (error = %d)", error);
 			array_locked_del(op_array, op_lock, op);
-			return 0;
+			return -1;
 		}
 	}
-	return 1;
+	return 0;
 }
 
 int net_work()
@@ -347,7 +371,7 @@ int net_work()
 				(struct sockaddr**)&op->socket->remote_addr, &dummy);
 		}
 
-		op->complete(op->socket, error, bytes_transfered, op->udata);
+		op->complete(op->socket, posix_error(error), bytes_transfered, op->udata);
 		array_locked_del(op_array, op_lock, op);
 		return 1;
 	}
