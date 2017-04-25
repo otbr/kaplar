@@ -28,7 +28,6 @@ struct socket{
 
 #define MAX_SOCKETS 4096
 static struct array *sock_array = NULL;
-static struct mutex *sock_lock = NULL;
 
 
 // async op handle
@@ -40,13 +39,13 @@ struct async_op{
 	void *udata;
 };
 
+#define OP_USER		0x00
 #define OP_ACCEPT	0x01
 #define OP_READ		0x02
 #define OP_WRITE	0x03
 
 #define MAX_ASYNC_OPS 4096
 static struct array *op_array = NULL;
-static struct mutex *op_lock = NULL;
 
 
 // local helper functions
@@ -54,6 +53,8 @@ static int posix_error(int error)
 {
 	switch(error){
 		case WSA_OPERATION_ABORTED:	return ECANCELED;
+		case ERROR_NETNAME_DELETED:
+		case ERROR_CONNECTION_ABORTED:
 		case WSAECONNABORTED:		return ECONNABORTED;
 		case WSAECONNRESET:		return ECONNRESET;
 		case WSAENETRESET:		return ENETRESET;
@@ -65,23 +66,6 @@ static int posix_error(int error)
 		// generic error
 		default:			return -1;
 	}
-}
-
-static void *array_locked_new(struct array *array, struct mutex *mtx)
-{
-	void *ptr;
-
-	mutex_lock(mtx);
-	ptr = array_new(array);
-	mutex_unlock(mtx);
-	return ptr;
-}
-
-static void array_locked_del(struct array *array, struct mutex *mtx, void *ptr)
-{
-	mutex_lock(mtx);
-	array_del(array, ptr);
-	mutex_unlock(mtx);
 }
 
 static int ws_load_extensions()
@@ -104,7 +88,8 @@ static int ws_load_extensions()
 		&dummy, NULL, NULL);
 	if(ret == SOCKET_ERROR){
 		LOG_ERROR("server_init: failed to retrieve AcceptEx extension (error = %d)", GetLastError());
-		goto err;
+		closesocket(fd);
+		return -1;
 	}
 
 	// load GetAcceptExSockaddrs
@@ -113,14 +98,12 @@ static int ws_load_extensions()
 		&dummy, NULL, NULL);
 	if(ret == SOCKET_ERROR){
 		LOG_ERROR("server_init: failed to retrieve GetAcceptExSockaddrs extension (error = %d)", GetLastError());
-		goto err;
+		closesocket(fd);
+		return -1;
 	}
 
-	return 0;
-
-err:
 	closesocket(fd);
-	return -1;
+	return 0;
 }
 
 int net_init()
@@ -155,11 +138,11 @@ int net_init()
 
 	// memory for the socket structs
 	sock_array = array_create(MAX_SOCKETS, sizeof(struct socket));
-	mutex_create(&sock_lock);
+	array_init_lock(sock_array);
 
 	// memory for the operation structs
 	op_array = array_create(MAX_ASYNC_OPS, sizeof(struct async_op));
-	mutex_create(&op_lock);
+	array_init_lock(op_array);
 	return 0;
 }
 
@@ -170,18 +153,9 @@ void net_shutdown()
 		array_destroy(sock_array);
 		sock_array = NULL;
 	}
-	if(sock_lock != NULL){
-		mutex_destroy(sock_lock);
-		sock_lock = NULL;
-	}
-
 	if(op_array != NULL){
 		array_destroy(op_array);
 		op_array = NULL;
-	}
-	if(op_lock != NULL){
-		mutex_destroy(op_lock);
-		op_lock = NULL;
 	}
 
 	// close iocp
@@ -209,7 +183,7 @@ struct socket *net_socket()
 		return NULL;
 	}
 
-	sock = array_locked_new(sock_array, sock_lock);
+	sock = array_locked_new(sock_array);
 	sock->fd = fd;
 	return sock;
 }
@@ -223,12 +197,13 @@ struct socket *net_server_socket(int port)
 	fd = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if(fd == INVALID_SOCKET){
 		LOG_ERROR("net_server_socket: failed to create socket (error = %d)", GetLastError());
-		goto err;
+		return NULL;
 	}
 
 	if(CreateIoCompletionPort((HANDLE)fd, iocp, 0, 0) == NULL){
 		LOG_ERROR("net_server_socket: failed to register server socket to completion port (error = %d)", GetLastError());
-		goto err;
+		closesocket(fd);
+		return NULL;
 	}
 
 	addr.sin_family = AF_INET;
@@ -236,27 +211,64 @@ struct socket *net_server_socket(int port)
 	addr.sin_addr.s_addr = INADDR_ANY;
 	if(bind(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == SOCKET_ERROR){
 		LOG_ERROR("net_server_socket: failed to bind server socket to port %d (error = %d)", port, GetLastError());
-		goto err;
+		closesocket(fd);
+		return NULL;
 	}
 
 	if(listen(fd, SOMAXCONN) == SOCKET_ERROR){
 		LOG_ERROR("net_server_socket: failed to listen on server socket (error = %d)", GetLastError());
-		goto err;
+		closesocket(fd);
+		return NULL;
 	}
 
-	sock = array_locked_new(sock_array, sock_lock);
+	sock = array_locked_new(sock_array);
 	sock->fd = fd;
 	return sock;
+}
 
-err:
-	closesocket(fd);
-	return NULL;
+unsigned long net_get_remote_address(struct socket *sock)
+{
+	if(sock->remote_addr == NULL) return 0;
+	return sock->remote_addr->sin_addr.s_addr;
+}
+
+void net_socket_shutdown(struct socket *sock, int how)
+{
+	// these are the correct values both
+	// on windows and unix systems
+	shutdown(sock->fd, how);
 }
 
 void net_close(struct socket *sock)
 {
 	closesocket(sock->fd);
-	array_locked_del(sock_array, sock_lock, sock);
+}
+
+void net_release(struct socket *sock)
+{
+	array_locked_del(sock_array, sock);
+}
+
+int net_async(struct socket *sock,
+		void (*fp)(struct socket*, int, int, void*), void *udata)
+{
+	BOOL ret;
+	DWORD error;
+	struct async_op *op;
+
+	op = array_locked_new(op_array);
+	memset(op, 0, sizeof(struct async_op));
+	op->opcode = OP_USER;
+	op->socket = sock;
+	op->complete = fp;
+	op->udata = udata;
+	ret = PostQueuedCompletionStatus(iocp, 0, 0, (OVERLAPPED*)op);
+	if(ret == FALSE){
+		LOG_ERROR("net_async_close: failed to post close operation (error = %d)", GetLastError());
+		array_locked_del(op_array, op);
+		return -1;
+	}
+	return 0;
 }
 
 int net_async_accept(struct socket *sock,
@@ -267,7 +279,7 @@ int net_async_accept(struct socket *sock,
 	DWORD error;
 	struct async_op *op;
 
-	op = array_locked_new(op_array, op_lock);
+	op = array_locked_new(op_array);
 	memset(op, 0, sizeof(struct async_op));
 	op->opcode = OP_ACCEPT;
 	op->socket = net_socket();
@@ -280,7 +292,7 @@ int net_async_accept(struct socket *sock,
 		error = GetLastError();
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_accept: AcceptEx failed (error = %d)", error);
-			array_locked_del(op_array, op_lock, op);
+			array_locked_del(op_array, op);
 			return -1;
 		}
 	}
@@ -300,7 +312,7 @@ int net_async_read(struct socket *sock, char *buf, int len,
 	data.len = len;
 	flags = 0;
 
-	op = array_locked_new(op_array, op_lock);
+	op = array_locked_new(op_array);
 	memset(op, 0, sizeof(struct async_op));
 	op->opcode = OP_READ;
 	op->socket = sock;
@@ -310,7 +322,7 @@ int net_async_read(struct socket *sock, char *buf, int len,
 		error = GetLastError();
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_read: WSARecv failed (error = %d)", error);
-			array_locked_del(sock_array, sock_lock, op);
+			array_locked_del(op_array, op);
 			return -1;
 		}
 	}
@@ -328,7 +340,7 @@ int net_async_write(struct socket *sock, char *buf, int len,
 	data.buf = buf;
 	data.len = len;
 
-	op = array_locked_new(op_array, op_lock);
+	op = array_locked_new(op_array);
 	memset(op, 0, sizeof(struct async_op));
 	op->opcode = OP_WRITE;
 	op->socket = sock;
@@ -338,7 +350,7 @@ int net_async_write(struct socket *sock, char *buf, int len,
 		error = GetLastError();
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_write: WSASend failed (error = %d)", error);
-			array_locked_del(op_array, op_lock, op);
+			array_locked_del(op_array, op);
 			return -1;
 		}
 	}
@@ -359,7 +371,7 @@ int net_work()
 
 	if(ret == FALSE){
 		error = GetLastError();
-		LOG_ERROR("net_work: GetQueuedCompletionStatus failed (error = %d)", error);
+		LOG_ERROR("net_work: failed to retrieve queued status (error = %d)", error);
 	}
 
 	if(op != NULL){
@@ -372,7 +384,7 @@ int net_work()
 		}
 
 		op->complete(op->socket, posix_error(error), bytes_transfered, op->udata);
-		array_locked_del(op_array, op_lock, op);
+		array_locked_del(op_array, op);
 		return 1;
 	}
 

@@ -1,5 +1,6 @@
 #include "array.h"
 #include "log.h"
+#include "thread.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -10,6 +11,7 @@ struct array{
 	long offset;
 	void *base;
 	void *freelist;
+	struct mutex *lock;
 };
 
 struct array *array_create(long slots, long stride)
@@ -33,11 +35,15 @@ struct array *array_create(long slots, long stride)
 	array->offset = 0;
 	array->base = (char*)(array) + offset;
 	array->freelist = NULL;
+	array->lock = NULL;
 	return array;
 }
 
 void array_destroy(struct array *array)
 {
+	if(array->lock != NULL)
+		mutex_destroy(array->lock);
+
 	free(array);
 }
 
@@ -92,6 +98,38 @@ void *array_get(struct array *array, long idx)
 		if(it == ptr)
 			return NULL;
 	}
+	return ptr;
+}
+
+void array_init_lock(struct array *array)
+{
+	if(array->lock != NULL)
+		LOG_WARNING("array_init_lock: array already has an initialized lock");
+	mutex_create(&array->lock);
+}
+
+void *array_locked_new(struct array *array)
+{
+	void *ptr;
+	mutex_lock(array->lock);
+	ptr = array_new(array);
+	mutex_unlock(array->lock);
+	return ptr;
+}
+
+void array_locked_del(struct array *array, void *ptr)
+{
+	mutex_lock(array->lock);
+	array_del(array, ptr);
+	mutex_unlock(array->lock);
+}
+
+void *array_locked_get(struct array *array, long idx)
+{
+	void *ptr;
+	mutex_lock(array->lock);
+	ptr = array_get(array, idx);
+	mutex_unlock(array->lock);
 	return ptr;
 }
 

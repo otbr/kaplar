@@ -10,6 +10,11 @@ void *array_new(struct array *array);
 void array_del(struct array *array, void *ptr);
 void *array_get(struct array *array, long idx);
 
+void array_init_lock(struct array *array);
+void *array_locked_new(struct array *array);
+void array_locked_del(struct array *array, void *ptr);
+void *array_locked_get(struct array *array, long idx);
+
 void array_report(struct array *array);
 
 #endif //__ARRAY_H__

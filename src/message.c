@@ -62,19 +62,19 @@ uint32_t message_get_u32(struct message *msg)
 	return swap_u32(val);
 }
 
-const char *message_get_str(struct message *msg, uint16_t *len)
+void message_get_str(struct message *msg, char *buf, uint16_t buflen)
 {
-	const char *str = NULL;
-
-	//assert(len != NULL || "message_get_str: parameter \"len\" can't be NULL");
-	if(len == NULL) return NULL;
-	*len = message_get_u16(msg);
-	if(*len != 0){
-		str = (const char*)(msg->buffer + msg->readpos);
-		msg->readpos += *len;
+	uint16_t len = message_get_u16(msg);
+	if(len == 0) return;
+	if(len > buflen - 1){
+		memcpy(buf, (msg->buffer + msg->readpos), buflen - 1);
+		buf[buflen - 1] = 0x00;
 	}
-
-	return str;
+	else{
+		memcpy(buf, (msg->buffer + msg->readpos), len);
+		buf[len] = 0x00;
+	}
+	msg->readpos += len;
 }
 
 void message_add_byte(struct message *msg, uint8_t val)
@@ -98,10 +98,10 @@ void message_add_u32(struct message *msg, uint32_t val)
 	msg->length += 4;
 }
 
-void message_add_str(struct message *msg, const char *str, uint16_t len)
+void message_add_str(struct message *msg, const char *buf, uint16_t buflen)
 {
-	message_add_u16(msg, len);
-	memcpy(msg->buffer + msg->readpos, str, len);
-	msg->readpos += len;
-	msg->length += len;
+	message_add_u16(msg, buflen);
+	memcpy((msg->buffer + msg->readpos), buf, buflen);
+	msg->readpos += buflen;
+	msg->length += buflen;
 }

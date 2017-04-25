@@ -2,63 +2,62 @@
 #include "work.h"
 #include "scheduler.h"
 #include "network.h"
+#include "server.h"
+#include "log.h"
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
 
-struct socket *server;
+#define OTSERV_NAME "Kaplar"
+#define OTSERV_VERSION "0.0.1"
 
 static void on_read(struct socket *sock, int error, int bytes_transfered, void *udata)
 {
-	char *data = udata;
-
-	printf("on_read: sock = %p, error = %d, bytes_transfered = %d, udata = %p\n",
+	char *buf = udata;
+	LOG("on_read: sock=%p, error=%d, bytes_transfered=%d, udata=%p\n",
 		sock, error, bytes_transfered, udata);
-	if(bytes_transfered > 0)
-		printf("%.*s\n", bytes_transfered, data);
 
-	free(data);
-	net_close(sock);
+	free(buf);
 }
 
-static void accept();
-static void on_accept(struct socket *sock, int error, int bytes_trasnfered, void *udata)
+static void on_accept(struct socket *sock, int error, int bytes_transfered, void *udata)
 {
-	char *data;
+	char *buff;
+	struct socket *server = udata;
 
-	printf("got it! reading message...\n");
-	data = malloc(1024);
-	net_async_read(sock, data, 1024, on_read, data);
-	accept();
-}
-
-static void accept()
-{
-	printf("waiting on connection...\n");
-	net_async_accept(server, on_accept, NULL);
+	buff = malloc(1024);
+	net_async_read(sock, buff, 1024, on_read, buff);
+	net_sd(sock);
+	net_async_accept(server, on_accept, udata);
 }
 
 int main(int argc, char **argv)
 {
+	struct socket *server;
+
 	cmdl_init(argc, argv);
+	// parse command line here
+
+	LOG(OTSERV_NAME " Version " OTSERV_VERSION);
+	LOG("================================");
+
 	work_init();
 	scheduler_init();
+	//server_init();
 
-	//
+	// run server
+	//server_add_protocol(7171, &protocol_login);
+	//server_add_protocol(7171, &protocol_old_login);
+	//server_add_protocol(7172, &protocol_old_game);
+	//server_add_protocol(7172, &protocol_game);
+	//server_run();
+
 	net_init();
-	// server = server_start(7171);
-	// info_server = server_start(7172);
-	// server_add_protocol(server, protocol_game);
-	// server_add_protocol(server, protocol_login);
-	// server_add_protocol(server, protocol_old);
-	// server_add_protocol(info_server, protocol_info);
 	server = net_server_socket(7171);
-	accept();
-	while(1) printf("work: %d\n", net_work());
-
-	getchar();
+	net_async_accept(server, on_accept, server);
+	while(1) net_work();
 	net_shutdown();
+
+	//server_shutdown();
 	scheduler_shutdown();
 	work_shutdown();
 	return 0;

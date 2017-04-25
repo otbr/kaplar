@@ -14,6 +14,7 @@ int	thread_join(struct thread *thr);
 
 // Mutex
 // ====================
+// NOTE: the implementation must support recursive lock/unlock
 struct mutex;
 
 void	mutex_create(struct mutex **mtx);

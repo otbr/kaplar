@@ -22,9 +22,6 @@
     <ClCompile Include="..\main.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="..\protocol.c">
-      <Filter>core</Filter>
-    </ClCompile>
     <ClCompile Include="..\scheduler.c">
       <Filter>core</Filter>
     </ClCompile>
@@ -53,6 +50,18 @@
       <Filter>core</Filter>
     </ClCompile>
     <ClCompile Include="..\array.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\protocol_game.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\protocol_login.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\protocol_old.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\connection.c">
       <Filter>core</Filter>
     </ClCompile>
   </ItemGroup>
@@ -93,7 +102,7 @@
     <ClInclude Include="..\array.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\protocol.h">
+    <ClInclude Include="..\connection.h">
       <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>
