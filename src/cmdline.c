@@ -21,7 +21,7 @@ const char *cmdl_get_string(const char *cmd)
 	// system path to the executable
 	for(i = 1; i < l_argc; ++i){
 		str = l_argv[i];
-		aux = strlen(cmd);
+		aux = (long)strlen(cmd);
 		if(aux <= strlen(str) && strncmp(cmd, str, aux) == 0)
 			return l_argv[i];
 	}

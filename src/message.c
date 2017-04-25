@@ -33,12 +33,11 @@ static inline uint32_t swap_u32(uint32_t x)
 }
 #endif
 
-void message_reset(struct message *msg)
+void message_decode_length(struct message *msg)
 {
-	msg->readpos = 0;
-	msg->length = 0;
-	msg->state = MESSAGE_FREE;
-	msg->next = NULL;
+	msg->length = *(uint16_t*)(msg->buffer);
+	msg->length = swap_u16((uint16_t)msg->length);
+	msg->readpos = 2;
 }
 
 uint8_t message_get_byte(struct message *msg)
@@ -66,14 +65,11 @@ void message_get_str(struct message *msg, char *buf, uint16_t buflen)
 {
 	uint16_t len = message_get_u16(msg);
 	if(len == 0) return;
-	if(len > buflen - 1){
-		memcpy(buf, (msg->buffer + msg->readpos), buflen - 1);
-		buf[buflen - 1] = 0x00;
-	}
-	else{
-		memcpy(buf, (msg->buffer + msg->readpos), len);
-		buf[len] = 0x00;
-	}
+	if(len > buflen - 1)
+		len = buflen - 1;
+
+	memcpy(buf, (msg->buffer + msg->readpos), len);
+	buf[len] = 0x00;
 	msg->readpos += len;
 }
 

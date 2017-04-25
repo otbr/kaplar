@@ -40,7 +40,7 @@ static void disconnect(struct connection *conn, const char *message)
 	struct message *output = connection_get_output_message(conn);
 	if(output){
 		message_add_byte(output, 0x0A);
-		message_add_str(output, message, strlen(message));
+		message_add_str(output, message, (uint16_t)strlen(message));
 		connection_send(conn, output);
 	}
 	connection_close(conn);

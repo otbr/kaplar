@@ -17,8 +17,7 @@ struct message{
 	struct message *next;
 };
 
-void message_reset(struct message *msg);
-void message_goto(struct message *msg, long writepos);
+void message_decode_length(struct message *msg);
 
 uint8_t message_get_byte(struct message *msg);
 uint16_t message_get_u16(struct message *msg);

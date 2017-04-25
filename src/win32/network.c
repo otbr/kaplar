@@ -39,7 +39,6 @@ struct async_op{
 	void *udata;
 };
 
-#define OP_USER		0x00
 #define OP_ACCEPT	0x01
 #define OP_READ		0x02
 #define OP_WRITE	0x03
@@ -247,28 +246,6 @@ void net_close(struct socket *sock)
 void net_release(struct socket *sock)
 {
 	array_locked_del(sock_array, sock);
-}
-
-int net_async(struct socket *sock,
-		void (*fp)(struct socket*, int, int, void*), void *udata)
-{
-	BOOL ret;
-	DWORD error;
-	struct async_op *op;
-
-	op = array_locked_new(op_array);
-	memset(op, 0, sizeof(struct async_op));
-	op->opcode = OP_USER;
-	op->socket = sock;
-	op->complete = fp;
-	op->udata = udata;
-	ret = PostQueuedCompletionStatus(iocp, 0, 0, (OVERLAPPED*)op);
-	if(ret == FALSE){
-		LOG_ERROR("net_async_close: failed to post close operation (error = %d)", GetLastError());
-		array_locked_del(op_array, op);
-		return -1;
-	}
-	return 0;
 }
 
 int net_async_accept(struct socket *sock,

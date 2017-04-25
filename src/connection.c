@@ -45,38 +45,58 @@ static void on_read_header(struct socket *sock, int error, int bytes_transfered,
 	struct message *msg = &conn->input;
 
 	mutex_lock(conn->lock);
-	// check for:
-	//	- closed or closing connection
-	//	- errors
-	//	- body length
+	// check for errors, if message length is greater than the limit
+	// or if the connection is closed/closing
+	message_decode_length(msg);
 	if((conn->flags & (CONNECTION_CLOSED | CONNECTION_CLOSING)) != 0
-			|| error != 0){
-		conn->flags |= CONNECTION_READ_DONE;
-		connection_close(conn);
-		mutex_unlock(conn->lock);
-		return;
-	}
+			|| error != 0 || msg->length > MESSAGE_BUFFER_LEN)
+		goto close;
 
-	net_async_read(sock, msg->buffer+2, 1024 /*body_length*/, on_read_body, conn);
+	// chain the body read and close connection in case of error
+	if(net_async_read(sock, msg->buffer+2, msg->length-2, on_read_body, conn) != 0)
+		goto close;
+
 	mutex_unlock(conn->lock);
+	return;
+
+close:
+	conn->flags |= CONNECTION_READ_DONE;
+	mutex_unlock(conn->lock);
+	connection_close(conn);
 }
 
 static void on_read_body(struct socket *sock, int error, int bytes_transfered, void *udata)
 {
 	struct connection *conn = udata;
+	struct message *msg = &conn->input;
+	void *handle = conn->handle;
 
 	mutex_lock(conn->lock);
-	// check for:
-	//	- closed or closing connection
-	//	- errors
+	// check for errors or if the connection is closed/closing
 	if((conn->flags & (CONNECTION_CLOSED | CONNECTION_CLOSING)) != 0
-			|| error != 0){
-		conn->flags |= CONNECTION_READ_DONE;
-		connection_close(conn);
-		mutex_unlock(conn->lock);
-		return;
+			|| error != 0)
+		goto close;
+
+	// check if it's the first message
+	if(handle == NULL){
+		// get protocol identifier
+		// conn->protocol->on_recv_first_message(handle, msg);
 	}
+	else{
+		conn->protocol->on_recv_message(handle, msg);
+	}
+
+	// chain the header read and close connection in case of error
+	if(net_async_read(sock, msg->buffer, 2, on_read_header, conn) != 0)
+		goto close;
+
 	mutex_unlock(conn->lock);
+	return;
+
+close:
+	conn->flags |= CONNECTION_READ_DONE;
+	mutex_unlock(conn->lock);
+	connection_close(conn);
 }
 
 static void on_write(struct socket *sock, int error, int bytes_transfered, void *udata)
@@ -85,15 +105,9 @@ static void on_write(struct socket *sock, int error, int bytes_transfered, void 
 	struct message *msg, *next;
 
 	mutex_lock(conn->lock);
-	// check for:
-	//	- closed connection
-	//	- errors
-	if((conn->flags & CONNECTION_CLOSED) != 0 || error != 0){
-		conn->flags |= CONNECTION_WRITE_DONE;
-		connection_close(conn);
-		mutex_unlock(conn->lock);
-		return;
-	}
+	// check for errors or if the connection is closed
+	if((conn->flags & CONNECTION_CLOSED) != 0 || error != 0)
+		goto close;
 
 	// pop message from queue and free it
 	msg = conn->output_queue;
@@ -103,15 +117,23 @@ static void on_write(struct socket *sock, int error, int bytes_transfered, void 
 
 	// chain an async write to the next output message if any
 	if(next != NULL){
-		net_async_write(conn->sock, next->buffer, next->length, on_write, conn);
+		if(net_async_write(conn->sock, next->buffer, next->length,
+				on_write, conn) != 0)
+			goto close;
 	}
 	// if connection is closing and there is no more messages
 	// to send we can close it
 	else if((conn->flags & CONNECTION_CLOSING) != 0){
-		conn->flags |= CONNECTION_WRITE_DONE;
-		connection_close(conn);
+		goto close;
 	}
+
 	mutex_unlock(conn->lock);
+	return;
+
+close:
+	conn->flags |= CONNECTION_WRITE_DONE;
+	mutex_unlock(conn->lock);
+	connection_close(conn);
 }
 
 // connection functions
@@ -142,14 +164,19 @@ void connection_accept(struct socket *sock, struct protocol *protocol)
 {
 	struct connection *conn;
 
-	// allocate new connection and initialize it
-	conn = array_locked_new(conn_array);
+	// allocate new connection and add it to the connection list
+	mutex_lock(lock);
+	conn = array_new(conn_array);
+	conn->next = conn_list;
+	conn_list = conn;
+	mutex_unlock(lock);
+
+	// initialize connection values
 	conn->sock = sock;
 	conn->flags = CONNECTION_OPEN;
 	conn->output_queue = NULL;
 	conn->protocol = protocol;
 	conn->handle = NULL;
-	conn->next = NULL;
 
 	// set connection message states
 	conn->input.state = MESSAGE_BUSY;
@@ -167,7 +194,10 @@ void connection_accept(struct socket *sock, struct protocol *protocol)
 	}
 
 	// start connection read loop
-	net_async_read(sock, conn->input.buffer, 2, on_read_header, conn);
+	if(net_async_read(sock, conn->input.buffer, 2, on_read_header, conn) != 0){
+		conn->flags |= CONNECTION_READ_DONE;
+		connection_close(conn);
+	}
 }
 
 struct message *connection_get_output_message(struct connection *conn)
@@ -211,6 +241,8 @@ void connection_send(struct connection *conn, struct message *msg)
 
 void connection_close(struct connection *conn)
 {
+	struct connection **it;
+
 	mutex_lock(conn->lock);
 	// release protocol handle so no further operations
 	// will take effects
@@ -220,15 +252,35 @@ void connection_close(struct connection *conn)
 	}
 
 	// shutdown socket reading
-	if(conn->flags & CONNECTION_CLOSING == 0){
+	if((conn->flags & CONNECTION_CLOSING) == 0){
 		conn->flags |= CONNECTION_CLOSING;
 		net_socket_shutdown(conn->sock, NET_SHUT_RD);
 	}
 
+	// if there is no output_queue then there is no current
+	// writing operation
+	if(conn->output_queue == NULL)
+		conn->flags |= CONNECTION_WRITE_DONE;
+
 	// if both reading and writing chains are done
 	// we may safelly release the connection
 	if(conn->flags & (CONNECTION_READ_DONE | CONNECTION_WRITE_DONE)){
-		//
+		// destroy connection lock
+		mutex_unlock(conn->lock);
+		mutex_destroy(conn->lock);
+
+		// remove it from the connection list and free it
+		mutex_lock(lock);
+		it = &conn_list;
+		while(*it != NULL && *it != conn)
+			it = &(*it)->next;
+		// (*it) must be the connection here or else
+		// there is a bug somewhere
+		if(*it != NULL)
+			(*it) = conn->next;
+		array_del(conn_array, conn);
+		mutex_unlock(lock);
+		return;
 	}
 	mutex_unlock(conn->lock);
 }

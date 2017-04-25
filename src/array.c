@@ -70,11 +70,11 @@ void array_del(struct array *array, void *ptr)
 	char *base = array->base;
 
 	// check if ptr was allocated by this allocator
-	if(ptr < base || ptr >= (base + array->capacity))
+	if(ptr < (void*)base || ptr >= (void*)(base + array->capacity))
 		return;
 
 	// return memory to allocator
-	if(ptr == (base + array->offset - array->stride)){
+	if(ptr == (void*)(base + array->offset - array->stride)){
 		array->offset -= array->stride;
 	}
 	else{
@@ -87,7 +87,7 @@ void *array_get(struct array *array, long idx)
 {
 	void *it;
 	char *base = array->base;
-	void *ptr = base + (idx * array->stride);
+	char *ptr = base + (idx * array->stride);
 
 	// check if it's in range
 	if(ptr < base || ptr >= (base + array->capacity))
@@ -98,7 +98,7 @@ void *array_get(struct array *array, long idx)
 		if(it == ptr)
 			return NULL;
 	}
-	return ptr;
+	return (void*)ptr;
 }
 
 void array_init_lock(struct array *array)

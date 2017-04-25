@@ -61,6 +61,8 @@ void server_init()
 
 void server_shutdown()
 {
+	// close all services
+	// cleanup protocols
 }
 
 void server_run()
@@ -127,10 +129,4 @@ void server_add_protocol(int port, struct protocol *protocol)
 		protocol->next = service->protocol_list;
 		service->protocol_list = protocol;
 	}
-}
-
-void server_cleanup()
-{
-	// close all services
-	// cleanup protocols
 }

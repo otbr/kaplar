@@ -26,7 +26,7 @@ static void on_accept(struct socket *sock, int error, int bytes_transfered, void
 
 	buff = malloc(1024);
 	net_async_read(sock, buff, 1024, on_read, buff);
-	net_sd(sock);
+	net_socket_shutdown(sock, NET_SHUT_RDWR);
 	net_async_accept(server, on_accept, udata);
 }
 
