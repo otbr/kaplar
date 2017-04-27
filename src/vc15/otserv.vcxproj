@@ -128,6 +128,7 @@
     <ClCompile Include="..\protocol_game.c" />
     <ClCompile Include="..\protocol_login.c" />
     <ClCompile Include="..\protocol_old.c" />
+    <ClCompile Include="..\protocol_test.c" />
     <ClCompile Include="..\server.c" />
     <ClCompile Include="..\creature.c" />
     <ClCompile Include="..\game.c" />

@@ -64,6 +64,9 @@
     <ClCompile Include="..\connection.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="..\protocol_test.c">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\thread.h">

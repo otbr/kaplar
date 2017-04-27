@@ -43,7 +43,7 @@ static void disconnect(struct connection *conn, const char *message)
 		message_add_str(output, message, (uint16_t)strlen(message));
 		connection_send(conn, output);
 	}
-	connection_close(conn);
+	connection_close(conn, 0);
 }
 
 static void *create_handle(struct connection *conn)
@@ -102,5 +102,5 @@ static void on_recv_first_message(void *handle, struct message *msg)
 		//send_message(conn, output);
 		connection_send(conn, output);
 	}
-	connection_close(conn);
+	connection_close(conn, 0);
 }

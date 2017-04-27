@@ -18,7 +18,6 @@ unsigned long	net_get_remote_address(struct socket *sock);
 
 void	net_socket_shutdown(struct socket *sock, int how);
 void	net_close(struct socket *sock);
-void	net_release(struct socket *sock);
 
 int	net_async_accept(struct socket *sock,
 		void (*fp)(struct socket*, int, int, void*), void *udata);

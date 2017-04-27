@@ -241,10 +241,6 @@ void net_socket_shutdown(struct socket *sock, int how)
 void net_close(struct socket *sock)
 {
 	closesocket(sock->fd);
-}
-
-void net_release(struct socket *sock)
-{
 	array_locked_del(sock_array, sock);
 }
 

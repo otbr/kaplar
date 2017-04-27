@@ -5,14 +5,17 @@
 #include "server.h"
 #include "network.h"
 #include "thread.h"
+#include "scheduler.h"
 
 
 #define CONNECTION_OPEN		0x00
 #define CONNECTION_CLOSED	0x01
 #define CONNECTION_CLOSING	0x02
-#define CONNECTION_READ_DONE	0x04
-#define CONNECTION_WRITE_DONE	0x08
+#define CONNECTION_READING_DONE	0x04
+#define CONNECTION_WRITING_DONE	0x08
 
+#define RD_TIMEOUT 30000 // 30sec
+#define WR_TIMEOUT 30000 // 30sec
 #define MAX_OUTPUT 32
 struct connection{
 	struct socket		*sock;
@@ -25,13 +28,12 @@ struct connection{
 	struct protocol		*protocol;
 	void			*handle;
 
-	struct connection	*next;
+	struct sch_entry	*rd_timeout;
+	struct sch_entry	*wr_timeout;
 };
 
 #define MAX_CONNECTIONS 4096
 static struct array		*conn_array;
-static struct connection	*conn_list;
-static struct mutex		*lock;
 
 
 // async op callbacks
@@ -39,30 +41,46 @@ static void on_read_header(struct socket *sock, int error, int bytes_transfered,
 static void on_read_body(struct socket *sock, int error, int bytes_transfered, void *udata);
 static void on_write(struct socket *sock, int error, int bytes_transfered, void *udata);
 
+static void timeout_handler(void *arg)
+{
+	struct connection *conn = arg;
+
+	// in case of timeout simply close the connection
+	// NOTE: the connection should be valid here because
+	// when the connection is closed, every entry from
+	// the scheduler is removed
+	connection_close(conn, 1);
+}
+
 static void on_read_header(struct socket *sock, int error, int bytes_transfered, void *udata)
 {
 	struct connection *conn = udata;
 	struct message *msg = &conn->input;
+	int abort = 0;
 
 	mutex_lock(conn->lock);
 	// check for errors, if message length is greater than the limit
 	// or if the connection is closed/closing
 	message_decode_length(msg);
 	if((conn->flags & (CONNECTION_CLOSED | CONNECTION_CLOSING)) != 0
-			|| error != 0 || msg->length > MESSAGE_BUFFER_LEN)
+			|| error != 0 || msg->length > MESSAGE_BUFFER_LEN
+			|| msg->length == 0){
 		goto close;
+	}
 
-	// chain the body read and close connection in case of error
-	if(net_async_read(sock, msg->buffer+2, msg->length-2, on_read_body, conn) != 0)
+	// chain the body read and abort connection in case of error
+	else if(net_async_read(sock, msg->buffer+2, msg->length-2, on_read_body, conn) != 0){
+		abort = 1;
 		goto close;
+	}
 
 	mutex_unlock(conn->lock);
 	return;
 
 close:
-	conn->flags |= CONNECTION_READ_DONE;
+	conn->flags |= CONNECTION_READING_DONE;
 	mutex_unlock(conn->lock);
-	connection_close(conn);
+	connection_close(conn, abort);
 }
 
 static void on_read_body(struct socket *sock, int error, int bytes_transfered, void *udata)
@@ -70,6 +88,7 @@ static void on_read_body(struct socket *sock, int error, int bytes_transfered, v
 	struct connection *conn = udata;
 	struct message *msg = &conn->input;
 	void *handle = conn->handle;
+	int abort = 0;
 
 	mutex_lock(conn->lock);
 	// check for errors or if the connection is closed/closing
@@ -86,23 +105,27 @@ static void on_read_body(struct socket *sock, int error, int bytes_transfered, v
 		conn->protocol->on_recv_message(handle, msg);
 	}
 
-	// chain the header read and close connection in case of error
-	if(net_async_read(sock, msg->buffer, 2, on_read_header, conn) != 0)
+	// chain the header read and and reschedule read timeout
+	scheduler_reschedule(RD_TIMEOUT, conn->rd_timeout);
+	if(net_async_read(sock, msg->buffer, 2, on_read_header, conn) != 0){
+		abort = 1;
 		goto close;
+	}
 
 	mutex_unlock(conn->lock);
 	return;
 
 close:
-	conn->flags |= CONNECTION_READ_DONE;
+	conn->flags |= CONNECTION_READING_DONE;
 	mutex_unlock(conn->lock);
-	connection_close(conn);
+	connection_close(conn, abort);
 }
 
 static void on_write(struct socket *sock, int error, int bytes_transfered, void *udata)
 {
 	struct connection *conn = udata;
 	struct message *msg, *next;
+	int abort = 0;
 
 	mutex_lock(conn->lock);
 	// check for errors or if the connection is closed
@@ -117,46 +140,55 @@ static void on_write(struct socket *sock, int error, int bytes_transfered, void 
 
 	// chain an async write to the next output message if any
 	if(next != NULL){
+		// reschedule write timeout
+		scheduler_reschedule(WR_TIMEOUT, conn->wr_timeout);
 		if(net_async_write(conn->sock, next->buffer, next->length,
-				on_write, conn) != 0)
+				on_write, conn) != 0){
+			abort = 1;
 			goto close;
+		}
 	}
 	// if connection is closing and there is no more messages
 	// to send we can close it
 	else if((conn->flags & CONNECTION_CLOSING) != 0){
+		abort = 1;
 		goto close;
 	}
-
+	// if there are no more messages to be sent, cancel write timeout
+	else{
+		scheduler_remove(conn->wr_timeout);
+	}
 	mutex_unlock(conn->lock);
 	return;
 
 close:
-	conn->flags |= CONNECTION_WRITE_DONE;
+	conn->flags |= CONNECTION_WRITING_DONE;
 	mutex_unlock(conn->lock);
-	connection_close(conn);
+	connection_close(conn, abort);
 }
 
 // connection functions
 void connection_init()
 {
 	conn_array = array_create(MAX_CONNECTIONS, sizeof(struct connection));
-	conn_list = NULL;
-	mutex_create(&lock);
+	array_init_lock(conn_array);
 }
 
 void connection_shutdown()
 {
-	struct connection *it, *tmp;
+	struct connection *conn;
+	int i;
 
-	it = conn_list;
-	while(it != NULL){
-		tmp = it;
-		it = it->next;
-		net_close(tmp->sock);
-		mutex_destroy(tmp->lock);
-		array_locked_del(conn_array, tmp);
+	for(i = 0; i < MAX_CONNECTIONS; i++){
+		conn = array_locked_get(conn_array, i);
+		if(conn != NULL)
+			connection_close(conn, 1);
 	}
 
+	// this may release the connection memory before
+	// the read/write handlers release the connection
+	// but it shouldn't be a problem since this will
+	// only be called on cleanup
 	array_destroy(conn_array);
 }
 
@@ -164,19 +196,15 @@ void connection_accept(struct socket *sock, struct protocol *protocol)
 {
 	struct connection *conn;
 
-	// allocate new connection and add it to the connection list
-	mutex_lock(lock);
-	conn = array_new(conn_array);
-	conn->next = conn_list;
-	conn_list = conn;
-	mutex_unlock(lock);
-
 	// initialize connection values
+	conn = array_locked_new(conn_array);
 	conn->sock = sock;
 	conn->flags = CONNECTION_OPEN;
 	conn->output_queue = NULL;
 	conn->protocol = protocol;
 	conn->handle = NULL;
+	conn->rd_timeout = NULL;
+	conn->wr_timeout = NULL;
 
 	// set connection message states
 	conn->input.state = MESSAGE_BUSY;
@@ -194,9 +222,10 @@ void connection_accept(struct socket *sock, struct protocol *protocol)
 	}
 
 	// start connection read loop
+	conn->rd_timeout = scheduler_add(RD_TIMEOUT, timeout_handler, conn);
 	if(net_async_read(sock, conn->input.buffer, 2, on_read_header, conn) != 0){
-		conn->flags |= CONNECTION_READ_DONE;
-		connection_close(conn);
+		conn->flags |= CONNECTION_READING_DONE;
+		connection_close(conn, 1);
 	}
 }
 
@@ -226,7 +255,14 @@ void connection_send(struct connection *conn, struct message *msg)
 	if(conn->output_queue == NULL){
 		// restart write chain
 		conn->output_queue = msg;
-		net_async_write(conn->sock, msg->buffer, msg->length, on_write, conn);
+		conn->wr_timeout = scheduler_add(WR_TIMEOUT, timeout_handler, conn);
+		if(net_async_write(conn->sock, msg->buffer, msg->length,
+				on_write, conn) != 0){
+			conn->flags |= CONNECTION_WRITING_DONE;
+			mutex_unlock(conn->lock);
+			connection_close(conn, 1);
+			return;
+		}
 	}
 	else{
 		// push msg to the end of queue so it will
@@ -239,10 +275,8 @@ void connection_send(struct connection *conn, struct message *msg)
 	mutex_unlock(conn->lock);
 }
 
-void connection_close(struct connection *conn)
+void connection_close(struct connection *conn, int abort)
 {
-	struct connection **it;
-
 	mutex_lock(conn->lock);
 	// release protocol handle so no further operations
 	// will take effects
@@ -251,8 +285,14 @@ void connection_close(struct connection *conn)
 		conn->handle = NULL;
 	}
 
+	// close socket if aborting
+	if(abort != 0 && (conn->flags & CONNECTION_CLOSED) == 0){
+		conn->flags |= CONNECTION_CLOSED;
+		net_close(conn->sock);
+		conn->sock = NULL;
+	}
 	// shutdown socket reading
-	if((conn->flags & CONNECTION_CLOSING) == 0){
+	else if((conn->flags & CONNECTION_CLOSING) == 0){
 		conn->flags |= CONNECTION_CLOSING;
 		net_socket_shutdown(conn->sock, NET_SHUT_RD);
 	}
@@ -260,26 +300,23 @@ void connection_close(struct connection *conn)
 	// if there is no output_queue then there is no current
 	// writing operation
 	if(conn->output_queue == NULL)
-		conn->flags |= CONNECTION_WRITE_DONE;
+		conn->flags |= CONNECTION_WRITING_DONE;
 
 	// if both reading and writing chains are done
 	// we may safelly release the connection
-	if(conn->flags & (CONNECTION_READ_DONE | CONNECTION_WRITE_DONE)){
+	if(conn->flags & (CONNECTION_READING_DONE | CONNECTION_WRITING_DONE)){
+		// close socket if it's still open
+		if(conn->sock != NULL){
+			net_close(conn->sock);
+			conn->sock = NULL;
+		}
+
 		// destroy connection lock
 		mutex_unlock(conn->lock);
 		mutex_destroy(conn->lock);
 
-		// remove it from the connection list and free it
-		mutex_lock(lock);
-		it = &conn_list;
-		while(*it != NULL && *it != conn)
-			it = &(*it)->next;
-		// (*it) must be the connection here or else
-		// there is a bug somewhere
-		if(*it != NULL)
-			(*it) = conn->next;
-		array_del(conn_array, conn);
-		mutex_unlock(lock);
+		// release connection
+		array_locked_del(conn_array, conn);
 		return;
 	}
 	mutex_unlock(conn->lock);
