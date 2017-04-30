@@ -19,18 +19,15 @@ struct protocol{
 	void (*shutdown)();
 
 	void *(*create_handle)(struct connection*);
-	void (*destroy_handle)(void*);
+	void (*release_handle)(void*);
 
-	// event callbacks which operate on handles
+	// event callbacks
 	void (*on_connect)(void*);
 	void (*on_recv_message)(void*, struct message*);
 	void (*on_recv_first_message)(void*, struct message*);
 
 	struct protocol *next;
 };
-
-void server_init();
-void server_shutdown();
 
 void server_run();
 void server_stop();

@@ -4,6 +4,7 @@
 #include "network.h"
 #include "server.h"
 #include "log.h"
+#include "connection.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -23,18 +24,19 @@ int main(int argc, char **argv)
 
 	work_init();
 	scheduler_init();
-	server_init();
+	net_init();
+	connection_init();
 
 	// run server
 	//server_add_protocol(7171, &protocol_login);
 	//server_add_protocol(7171, &protocol_old_login);
-	//server_add_protocol(7172, &protocol_old_game);
+	//server_add_protocol(7171, &protocol_old_game);
 	//server_add_protocol(7172, &protocol_game);
 	server_add_protocol(7171, &protocol_test);
 	server_run();
 
-
-	server_shutdown();
+	connection_shutdown();
+	net_shutdown();
 	scheduler_shutdown();
 	work_shutdown();
 	return 0;

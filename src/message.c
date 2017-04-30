@@ -33,11 +33,21 @@ static inline uint32_t swap_u32(uint32_t x)
 }
 #endif
 
+void message_start(struct message *msg)
+{
+	msg->length = 0;
+	msg->readpos = 2;
+}
+
 void message_decode_length(struct message *msg)
 {
-	msg->length = *(uint16_t*)(msg->buffer);
-	msg->length = swap_u16((uint16_t)msg->length);
-	msg->readpos = 2;
+	uint16_t length = *(uint16_t*)(msg->buffer);
+	msg->length = swap_u16(length) + 2;
+}
+
+void message_add_header(struct message *msg)
+{
+	*(uint16_t*)(msg->buffer) = swap_u16((uint16_t)msg->length);
 }
 
 uint8_t message_get_byte(struct message *msg)

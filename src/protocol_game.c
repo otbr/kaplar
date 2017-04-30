@@ -9,7 +9,7 @@ struct protocol protocol_game = {
 		| PROTOCOL_USE_CHECKSUM,
 
 	.create_handle = NULL,
-	.destroy_handle = NULL,
+	.release_handle = NULL,
 
 	.on_connect = NULL,
 	.on_recv_message = NULL,

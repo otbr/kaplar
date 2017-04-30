@@ -9,11 +9,12 @@
 // no-op for this protocol
 static void init(){}
 static void shutdown(){}
-static void destroy_handle(void *handle){}
+static void release_handle(void *handle){}
 
 // forward decl
 static void *create_handle(struct connection *conn);
 static void on_connect(void *handle);
+static void on_disconnect(void *handle);
 static void on_recv_message(void *handle, struct message *msg);
 
 
@@ -26,7 +27,7 @@ struct protocol protocol_test = {
 	.shutdown = shutdown,
 
 	.create_handle = create_handle,
-	.destroy_handle = destroy_handle,
+	.release_handle = release_handle,
 
 	.on_connect = on_connect,
 	.on_recv_message = on_recv_message,
@@ -46,8 +47,6 @@ static void send_hello(struct connection *conn)
 
 	// send hello message
 	msg = connection_get_output_message(conn);
-	msg->length = 0;
-	msg->readpos = 2;
 	message_add_str(msg, "Hello World", 11);
 	connection_send(conn, msg);
 }
@@ -55,8 +54,7 @@ static void send_hello(struct connection *conn)
 static void on_connect(void *handle)
 {
 	struct connection *conn = handle;
-
-	// send hello message
+	LOG("on_connect");
 	send_hello(conn);
 }
 
@@ -64,8 +62,8 @@ static void on_recv_message(void *handle, struct message *msg)
 {
 	char buf[64];
 	struct connection *conn = handle;
-
+	msg->readpos = 2;
 	message_get_str(msg, buf, 64);
-	LOG("message: %s", buf);
+	LOG("on_recv_message: %s", buf);
 	send_hello(conn);
 }

@@ -169,6 +169,7 @@ void net_shutdown()
 struct socket *net_socket()
 {
 	SOCKET fd;
+	struct linger linger;
 	struct socket *sock;
 
 	fd = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
@@ -177,8 +178,17 @@ struct socket *net_socket()
 		return NULL;
 	}
 
+	linger.l_onoff = 0;
+	linger.l_linger = 0;
+	if(setsockopt(fd, SOL_SOCKET, SO_LINGER, (char *)&linger, sizeof(struct linger)) == SOCKET_ERROR){
+		LOG_ERROR("net_socket: failed to set socket linger option (error = %d)", GetLastError());
+		closesocket(fd);
+		return NULL;
+	}
+
 	if(CreateIoCompletionPort((HANDLE)fd, iocp, 0, 0) != iocp){
 		LOG_ERROR("net_socket: failed to register socket to completion port (error = %d)", GetLastError());
+		closesocket(fd);
 		return NULL;
 	}
 
@@ -233,13 +243,15 @@ unsigned long net_get_remote_address(struct socket *sock)
 
 void net_socket_shutdown(struct socket *sock, int how)
 {
-	// these are the correct values both
-	// on windows and unix systems
 	shutdown(sock->fd, how);
 }
 
 void net_close(struct socket *sock)
 {
+	// cancel any pending io operations
+	CancelIoEx((HANDLE)sock->fd, NULL);
+
+	// close socket
 	closesocket(sock->fd);
 	array_locked_del(sock_array, sock);
 }
