@@ -1,5 +1,5 @@
-#ifndef __NETWORK_H__
-#define __NETWORK_H__
+#ifndef NETWORK_H_
+#define NETWORK_H_
 
 #include <errno.h>
 
@@ -9,10 +9,10 @@
 
 struct socket;
 
-int	net_init();
-void	net_shutdown();
+int	net_init(void);
+void	net_shutdown(void);
 
-struct socket	*net_socket();
+struct socket	*net_socket(void);
 struct socket	*net_server_socket(int port);
 unsigned long	net_get_remote_address(struct socket *sock);
 
@@ -26,6 +26,6 @@ int	net_async_read(struct socket *sock, char *buf, int len,
 int	net_async_write(struct socket *sock, char *buf, int len,
 		void (*fp)(struct socket*, int, int, void*), void *udata);
 
-int	net_work();
+int	net_work(void);
 
-#endif //__NETWORK_H__
+#endif //NETWORK_H_

@@ -1,7 +1,7 @@
-#ifndef __SYSTEM_H__
-#define __SYSTEM_H__
+#ifndef SYSTEM_H_
+#define SYSTEM_H_
 
-long sys_get_tick_count();
-long sys_get_cpu_count();
+long sys_get_tick_count(void);
+long sys_get_cpu_count(void);
 
-#endif //__SYSTEM_H__
+#endif //SYSTEM_H_

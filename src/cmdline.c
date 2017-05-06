@@ -41,7 +41,7 @@ int cmdl_get_long(const char *cmd, long *value)
 
 		// only return true if there is actually
 		// an integer to return
-		if(*sstr == '=' && sscanf(sstr + 1, "%d", value) == 1)
+		if(*sstr == '=' && sscanf(sstr + 1, "%ld", value) == 1)
 			return 0;
 	}
 	return -1;

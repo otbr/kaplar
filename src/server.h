@@ -1,5 +1,5 @@
-#ifndef __SERVER_H__
-#define __SERVER_H__
+#ifndef SERVER_H_
+#define SERVER_H_
 
 #define PROTOCOL_SENDS_FIRST	0x01
 #define PROTOCOL_USE_CHECKSUM	0x02
@@ -9,14 +9,17 @@ extern struct protocol protocol_game;
 extern struct protocol protocol_old_login;
 extern struct protocol protocol_old_game;
 
+struct connection;
+struct message;
+
 struct protocol{
 	const char *name;
 	int identifier;
 	int flags;
 
 	// callbacks to initialize protocol internals
-	void (*init)();
-	void (*shutdown)();
+	void (*init)(void);
+	void (*shutdown)(void);
 
 	void *(*create_handle)(struct connection*);
 	void (*release_handle)(void*);
@@ -29,8 +32,8 @@ struct protocol{
 	struct protocol *next;
 };
 
-void server_run();
-void server_stop();
+void server_run(void);
+void server_stop(void);
 void server_add_protocol(int port, struct protocol *protocol);
 
-#endif //__SERVER_H__
+#endif //SERVER_H_

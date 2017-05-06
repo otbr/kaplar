@@ -1,11 +1,11 @@
-#ifndef __LOG_H__
-#define __LOG_H__
+#ifndef LOG_H_
+#define LOG_H_
 
 #include "types.h"
 #include <stdarg.h>
 
-bool	log_start();
-void	log_stop();
+bool	log_start(void);
+void	log_stop(void);
 
 void	log_add(const char *tag, const char *fmt, ...);
 void	log_add0(const char *tag, const char *fmt, va_list ap);
@@ -28,4 +28,4 @@ void	log_add0(const char *tag, const char *fmt, va_list ap);
 			if(!(cond)) { LOG_DEBUG(__VA_ARGS__); }
 #endif
 
-#endif //__LOG_H__
+#endif //LOG_H_

@@ -1,5 +1,5 @@
-#ifndef __MESSAGE_H__
-#define __MESSAGE_H__
+#ifndef MESSAGE_H_
+#define MESSAGE_H_
 
 #include "types.h"
 
@@ -31,4 +31,4 @@ void message_add_u16(struct message *msg, uint16_t val);
 void message_add_u32(struct message *msg, uint32_t val);
 void message_add_str(struct message *msg, const char *buf, uint16_t buflen);
 
-#endif //__MESSAGE_H__
+#endif //MESSAGE_H_

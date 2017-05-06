@@ -15,8 +15,3 @@ struct protocol protocol_game = {
 	.on_recv_message = NULL,
 	.on_recv_first_message = NULL,
 };
-
-
-static void *create_handle()
-{
-}

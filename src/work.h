@@ -1,11 +1,11 @@
-#ifndef __WORK_H__
-#define __WORK_H__
+#ifndef WORK_H_
+#define WORK_H_
 
 struct work;
 
-void work_init();
-void work_shutdown();
+void work_init(void);
+void work_shutdown(void);
 
 void work_dispatch(void (*fp)(void *), void *arg);
 
-#endif //__WORK_H__
+#endif //WORK_H_

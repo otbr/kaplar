@@ -8,6 +8,8 @@
 #include "scheduler.h"
 #include "connection.h"
 
+#include <stdlib.h>
+
 #define SERVICE_OPEN	0x00
 #define SERVICE_CLOSED	0x01
 

@@ -1,5 +1,5 @@
-#ifndef __THREAD_H__
-#define __THREAD_H__
+#ifndef THREAD_H_
+#define THREAD_H_
 
 // thread, mutex and condvar are opaque structs
 // and defined on implementation files
@@ -34,4 +34,4 @@ void	condvar_signal(struct condvar *cv);
 void	condvar_broadcast(struct condvar *cv);
 
 
-#endif //__THREAD_H__
+#endif //THREAD_H_

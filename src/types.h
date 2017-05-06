@@ -1,5 +1,5 @@
-#ifndef __TYPES_H__
-#define __TYPES_H__
+#ifndef TYPES_H_
+#define TYPES_H_
 
 // integer types
 #if defined(_MSC_VER) && (_MSC_VER < 1600)
@@ -18,4 +18,4 @@
 // boolean type
 #include <stdbool.h>
 
-#endif //__TYPES_H__
+#endif //TYPES_H_

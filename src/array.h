@@ -1,5 +1,5 @@
-#ifndef __ARRAY_H__
-#define __ARRAY_H__
+#ifndef ARRAY_H_
+#define ARRAY_H_
 
 struct array;
 
@@ -17,4 +17,4 @@ void *array_locked_get(struct array *array, long idx);
 
 void array_report(struct array *array);
 
-#endif //__ARRAY_H__
+#endif //ARRAY_H_

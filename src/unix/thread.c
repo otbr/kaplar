@@ -1,9 +1,10 @@
-#include "log.h"
+#include "../thread.h"
 
-#include <stdlib.h>
+#include "../log.h"
 
 #include <time.h>
 #include <pthread.h>
+#include <stdlib.h>
 
 
 // Thread
