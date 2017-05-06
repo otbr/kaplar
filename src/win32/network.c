@@ -26,7 +26,7 @@ struct socket{
 	struct sockaddr_in *remote_addr;
 };
 
-#define MAX_SOCKETS 4096
+#define MAX_SOCKETS 2048
 static struct array *sock_array = NULL;
 
 
@@ -43,7 +43,7 @@ struct async_op{
 #define OP_READ		0x02
 #define OP_WRITE	0x03
 
-#define MAX_ASYNC_OPS 4096
+#define MAX_ASYNC_OPS 8192
 static struct array *op_array = NULL;
 
 

@@ -1,5 +1,4 @@
 #include "../log.h"
-#include "../thread.h"
 
 #include <stdlib.h>
 
@@ -32,7 +31,7 @@ int thread_create(struct thread **thr, void (*fp)(void *), void *arg)
 	(*thr)->handle = (HANDLE)_beginthreadex(NULL, 0, wrapper, (*thr), 0, NULL);
 	if((*thr)->handle == NULL){
 		free(*thr);
-		LOG_ERROR("thread_create: failed to create thread (errno = %d)", errno);
+		LOG_ERROR("thread_create: failed to create thread (error = %d)", errno);
 		return -1;
 	}
 
@@ -43,7 +42,7 @@ int thread_release(struct thread *thr)
 {
 	// check if thread has completed
 	if(WaitForSingleObject(thr->handle, 0) != WAIT_OBJECT_0){
-		LOG_ERROR("thread_release: thread is still running (err = %X)", GetLastError());
+		LOG_ERROR("thread_release: thread is still running");
 		return -1;
 	}
 
@@ -55,7 +54,7 @@ int thread_release(struct thread *thr)
 int thread_join(struct thread *thr)
 {
 	if(WaitForSingleObject(thr->handle, INFINITE) == WAIT_FAILED){
-		LOG_ERROR("thread_join: failed to join thread (err = %X)", GetLastError());
+		LOG_ERROR("thread_join: failed to join thread (error = %d)", GetLastError());
 		return -1;
 	}
 
@@ -113,7 +112,7 @@ void condvar_wait(struct condvar *cv, struct mutex *mtx)
 	SleepConditionVariableCS(&cv->handle, &mtx->handle, INFINITE);
 }
 
-void condvar_timedwait(struct condvar *cv, struct mutex *mtx, unsigned msec)
+void condvar_timedwait(struct condvar *cv, struct mutex *mtx, long msec)
 {
 	SleepConditionVariableCS(&cv->handle, &mtx->handle, (DWORD)msec);
 }

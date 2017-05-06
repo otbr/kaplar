@@ -14,7 +14,6 @@ static void release_handle(void *handle){}
 // forward decl
 static void *create_handle(struct connection *conn);
 static void on_connect(void *handle);
-static void on_disconnect(void *handle);
 static void on_recv_message(void *handle, struct message *msg);
 
 

@@ -35,7 +35,7 @@ struct connection{
 	struct sch_entry	*wr_timeout;
 };
 
-#define MAX_CONNECTIONS 4096
+#define MAX_CONNECTIONS 2048
 static struct array		*conn_array;
 
 static void internal_release(struct connection *conn);

@@ -29,7 +29,7 @@ struct condvar;
 void	condvar_create(struct condvar **cv);
 void	condvar_destroy(struct condvar *cv);
 void	condvar_wait(struct condvar *cv, struct mutex *mtx);
-void	condvar_timedwait(struct condvar *cv, struct mutex *mtx, unsigned msec);
+void	condvar_timedwait(struct condvar *cv, struct mutex *mtx, long msec);
 void	condvar_signal(struct condvar *cv);
 void	condvar_broadcast(struct condvar *cv);
 

@@ -105,7 +105,6 @@ void scheduler_shutdown()
 
 struct sch_entry *scheduler_add(long delay, void (*fp)(void *), void *arg)
 {
-	long time;
 	struct sch_entry *entry, **it;
 
 	if(running == 0){
@@ -113,7 +112,6 @@ struct sch_entry *scheduler_add(long delay, void (*fp)(void *), void *arg)
 		return NULL;
 	}
 
-	time = sys_get_tick_count() + delay;
 	mutex_lock(mtx);
 	// retrieve memory for the entry
 	entry = array_new(sch_array);
@@ -122,12 +120,12 @@ struct sch_entry *scheduler_add(long delay, void (*fp)(void *), void *arg)
 		mutex_unlock(mtx);
 		return NULL;
 	}
-	entry->time = time;
+	entry->time = sys_get_tick_count() + delay;
 	entry->fp = fp;
 	entry->arg = arg;
 	// sort list by time
 	it = &head;
-	while(*it != NULL && (*it)->time <= time)
+	while(*it != NULL && (*it)->time <= entry->time)
 		it = &(*it)->next;
 	entry->next = *it;
 	*it = entry;
@@ -162,16 +160,22 @@ void scheduler_reschedule(long delay, struct sch_entry *entry)
 	long time;
 	struct sch_entry **it;
 
-	time = sys_get_tick_count() + delay;
 	mutex_lock(mtx);
 	// retrieve entry from list
 	it = &head;
-	while(*it != NULL && (*it) != entry)
+	while(*it != NULL && *it != entry)
 		it = &(*it)->next;
-	// assert the new delay is further in time
-	if(*it != NULL && (*it)->time < time){
+
+	// check the entry is valid
+	if(*it != NULL && *it == entry){
 		// remove entry from current position
 		*it = (*it)->next;
+
+		// check if we need to restart iteration
+		time = sys_get_tick_count() + delay;
+		if((*it)->time > time)
+			it = &head;
+
 		// get new position
 		while(*it != NULL && (*it)->time <= time)
 			it = &(*it)->next;
