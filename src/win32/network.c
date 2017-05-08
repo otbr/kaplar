@@ -10,44 +10,38 @@
 
 #include <stdio.h>
 
-// windows specific handles
-static LPFN_ACCEPTEX _AcceptEx;
-static LPFN_GETACCEPTEXSOCKADDRS _GetAcceptExSockaddrs;
-static struct WSAData wsa_data;
-static HANDLE iocp = NULL;
-
-// socket handle
-struct socket{
-	SOCKET fd;
-
-	// used when accepting a new connection
-	char addr_buffer[(sizeof(struct sockaddr_in) + 16) * 2];
-	struct sockaddr_in *local_addr;
-	struct sockaddr_in *remote_addr;
-};
-
-#define MAX_SOCKETS 2048
-static struct array *sock_array = NULL;
-
-
-// async op handle
-struct async_op{
-	OVERLAPPED overlapped;
-	int opcode;
-	struct socket *socket;
-	void (*complete)(struct socket*, int, int, void*);
-	void *udata;
-};
-
+#define OP_FREE		0x00
 #define OP_ACCEPT	0x01
 #define OP_READ		0x02
 #define OP_WRITE	0x03
+struct async_op{
+	OVERLAPPED	overlapped;
+	int		opcode;
+	struct socket	*socket;
+	void		(*complete)(struct socket*, int, int, void*);
+	void		*udata;
+};
 
-#define MAX_ASYNC_OPS 8192
-static struct array *op_array = NULL;
+#define MAX_SOCKETS 2048
+#define SOCKET_MAX_OPS 8
+struct socket{
+	SOCKET			fd;
+	struct async_op		ops[SOCKET_MAX_OPS];
+	struct mutex		*lock;
+	char			addr_buffer[(sizeof(struct sockaddr_in) + 16) * 2];
+	struct sockaddr_in	*local_addr;
+	struct sockaddr_in	*remote_addr;
+};
 
 
-// local helper functions
+// windows specific handles
+static LPFN_ACCEPTEX			_AcceptEx;
+static LPFN_GETACCEPTEXSOCKADDRS	_GetAcceptExSockaddrs;
+static struct WSAData	wsa_data;
+static HANDLE		iocp = NULL;
+static struct array	*sock_array = NULL;
+
+
 static int posix_error(int error)
 {
 	switch(error){
@@ -67,7 +61,7 @@ static int posix_error(int error)
 	}
 }
 
-static int ws_load_extensions()
+static int load_extensions()
 {
 	int ret;
 	DWORD dummy;
@@ -123,7 +117,7 @@ int net_init()
 	}
 
 	// load windows sockets extensions
-	if(ws_load_extensions() != 0){
+	if(load_extensions() != 0){
 		LOG_ERROR("server_init: failed to load ws extensions");
 		return -1;
 	}
@@ -138,10 +132,6 @@ int net_init()
 	// memory for the socket structs
 	sock_array = array_create(MAX_SOCKETS, sizeof(struct socket));
 	array_init_lock(sock_array);
-
-	// memory for the operation structs
-	op_array = array_create(MAX_ASYNC_OPS, sizeof(struct async_op));
-	array_init_lock(op_array);
 	return 0;
 }
 
@@ -151,10 +141,6 @@ void net_shutdown()
 	if(sock_array != NULL){
 		array_destroy(sock_array);
 		sock_array = NULL;
-	}
-	if(op_array != NULL){
-		array_destroy(op_array);
-		op_array = NULL;
 	}
 
 	// close iocp
@@ -171,6 +157,7 @@ struct socket *net_socket()
 	SOCKET fd;
 	struct linger linger;
 	struct socket *sock;
+	int i;
 
 	fd = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if(fd == INVALID_SOCKET){
@@ -193,45 +180,48 @@ struct socket *net_socket()
 	}
 
 	sock = array_locked_new(sock_array);
+	if(sock == NULL){
+		LOG_ERROR("net_socket: socket array is at maximum capacity (%d)", MAX_SOCKETS);
+		closesocket(fd);
+		return NULL;
+	}
+
+	// initialize socket
 	sock->fd = fd;
+	sock->local_addr = NULL;
+	sock->remote_addr = NULL;
+	for(i = 0; i < SOCKET_MAX_OPS; i++)
+		sock->ops[i].opcode = OP_FREE;
+	mutex_create(&sock->lock);
 	return sock;
 }
 
 struct socket *net_server_socket(int port)
 {
-	SOCKET fd;
 	struct sockaddr_in addr;
 	struct socket *sock;
 
-	fd = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-	if(fd == INVALID_SOCKET){
-		LOG_ERROR("net_server_socket: failed to create socket (error = %d)", GetLastError());
-		return NULL;
-	}
-
-	if(CreateIoCompletionPort((HANDLE)fd, iocp, 0, 0) == NULL){
-		LOG_ERROR("net_server_socket: failed to register server socket to completion port (error = %d)", GetLastError());
-		closesocket(fd);
+	// create socket
+	sock = net_socket();
+	if(sock == NULL){
+		LOG_ERROR("net_server_socket: failed to create socket");
 		return NULL;
 	}
 
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
 	addr.sin_addr.s_addr = INADDR_ANY;
-	if(bind(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == SOCKET_ERROR){
+	if(bind(sock->fd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == SOCKET_ERROR){
 		LOG_ERROR("net_server_socket: failed to bind server socket to port %d (error = %d)", port, GetLastError());
-		closesocket(fd);
+		net_close(sock);
 		return NULL;
 	}
 
-	if(listen(fd, SOMAXCONN) == SOCKET_ERROR){
+	if(listen(sock->fd, SOMAXCONN) == SOCKET_ERROR){
 		LOG_ERROR("net_server_socket: failed to listen on server socket (error = %d)", GetLastError());
-		closesocket(fd);
+		net_close(sock);
 		return NULL;
 	}
-
-	sock = array_locked_new(sock_array);
-	sock->fd = fd;
 	return sock;
 }
 
@@ -244,6 +234,14 @@ unsigned long net_get_remote_address(struct socket *sock)
 void net_socket_shutdown(struct socket *sock, int how)
 {
 	shutdown(sock->fd, how);
+	if(how == NET_SHUT_RD || how == NET_SHUT_RDWR){
+		for(int i = 0; i < SOCKET_MAX_OPS; i++){
+			// operations will be canceled here but
+			// will be released by the work function
+			if(sock->ops[i].opcode == OP_READ)
+				CancelIoEx((HANDLE)sock->fd, (OVERLAPPED*)&sock->ops[i]);
+		}
+	}
 }
 
 void net_close(struct socket *sock)
@@ -251,9 +249,27 @@ void net_close(struct socket *sock)
 	// cancel any pending io operations
 	CancelIoEx((HANDLE)sock->fd, NULL);
 
-	// close socket
+	// release socket resources
 	closesocket(sock->fd);
+	mutex_destroy(sock->lock);
 	array_locked_del(sock_array, sock);
+}
+
+static struct async_op *get_socket_op(struct socket *sock, int opcode)
+{
+	struct async_op *op = NULL;
+	int i;
+
+	mutex_lock(sock->lock);
+	for(i = 0; i < SOCKET_MAX_OPS; i++){
+		if(sock->ops[i].opcode == OP_FREE){
+			op = &sock->ops[i];
+			op->opcode = opcode;
+			break;
+		}
+	}
+	mutex_unlock(sock->lock);
+	return op;
 }
 
 int net_async_accept(struct socket *sock,
@@ -264,9 +280,12 @@ int net_async_accept(struct socket *sock,
 	DWORD error;
 	struct async_op *op;
 
-	op = array_locked_new(op_array);
-	memset(op, 0, sizeof(struct async_op));
-	op->opcode = OP_ACCEPT;
+	op = get_socket_op(sock, OP_ACCEPT);
+	if(op == NULL){
+		LOG_ERROR("net_async_accept: maximum simultaneous operations reached (%d)", SOCKET_MAX_OPS);
+		return -1;
+	}
+	memset(&op->overlapped, 0, sizeof(OVERLAPPED));
 	op->socket = net_socket();
 	op->complete = fp;
 	op->udata = udata;
@@ -277,7 +296,7 @@ int net_async_accept(struct socket *sock,
 		error = GetLastError();
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_accept: AcceptEx failed (error = %d)", error);
-			array_locked_del(op_array, op);
+			op->opcode = OP_FREE;
 			return -1;
 		}
 	}
@@ -297,9 +316,12 @@ int net_async_read(struct socket *sock, char *buf, int len,
 	data.len = len;
 	flags = 0;
 
-	op = array_locked_new(op_array);
-	memset(op, 0, sizeof(struct async_op));
-	op->opcode = OP_READ;
+	op = get_socket_op(sock, OP_READ);
+	if(op == NULL){
+		LOG_ERROR("net_async_read: maximum simultaneous operations reached (%d)", SOCKET_MAX_OPS);
+		return -1;
+	}
+	memset(&op->overlapped, 0, sizeof(OVERLAPPED));
 	op->socket = sock;
 	op->complete = fp;
 	op->udata = udata;
@@ -307,7 +329,7 @@ int net_async_read(struct socket *sock, char *buf, int len,
 		error = GetLastError();
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_read: WSARecv failed (error = %d)", error);
-			array_locked_del(op_array, op);
+			op->opcode = OP_FREE;
 			return -1;
 		}
 	}
@@ -325,9 +347,12 @@ int net_async_write(struct socket *sock, char *buf, int len,
 	data.buf = buf;
 	data.len = len;
 
-	op = array_locked_new(op_array);
-	memset(op, 0, sizeof(struct async_op));
-	op->opcode = OP_WRITE;
+	op = get_socket_op(sock, OP_WRITE);
+	if(op == NULL){
+		LOG_ERROR("net_async_write: maximum simultaneous operations reached (%d)", SOCKET_MAX_OPS);
+		return -1;
+	}
+	memset(&op->overlapped, 0, sizeof(OVERLAPPED));
 	op->socket = sock;
 	op->complete = fp;
 	op->udata = udata;
@@ -335,7 +360,7 @@ int net_async_write(struct socket *sock, char *buf, int len,
 		error = GetLastError();
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_write: WSASend failed (error = %d)", error);
-			array_locked_del(op_array, op);
+			op->opcode = OP_FREE;
 			return -1;
 		}
 	}
@@ -369,7 +394,7 @@ int net_work()
 		}
 
 		op->complete(op->socket, posix_error(error), bytes_transfered, op->udata);
-		array_locked_del(op_array, op);
+		op->opcode = OP_FREE;
 		return 1;
 	}
 

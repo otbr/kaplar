@@ -13,5 +13,7 @@ long sys_get_tick_count(void)
 
 long sys_get_cpu_count(void)
 {
+	// this option is available on FreeBSD
+	// since version 5.0
 	return sysconf(_SC_NPROCESSORS_ONLN);
 }

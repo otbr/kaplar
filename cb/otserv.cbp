@@ -22,7 +22,6 @@
 				<Option compiler="clang" />
 				<Compiler>
 					<Add option="-O2" />
-					<Add option="-D_GNU_SOURCE" />
 				</Compiler>
 				<Linker>
 					<Add option="-s" />
@@ -31,8 +30,14 @@
 			</Target>
 		</Build>
 		<Compiler>
-			<Add option="-Weverything" />
+			<Add option="-Wall" />
+			<Add option="-std=c99" />
+			<Add option="-m64" />
+			<Add option="-D_XOPEN_SOURCE=700" />
 		</Compiler>
+		<Linker>
+			<Add option="-m64" />
+		</Linker>
 		<Unit filename="../src/array.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -51,6 +56,9 @@
 		<Unit filename="../src/game.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="../src/linux/network.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="../src/log.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -63,6 +71,12 @@
 		</Unit>
 		<Unit filename="../src/message.h" />
 		<Unit filename="../src/network.h" />
+		<Unit filename="../src/posix/system.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../src/posix/thread.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="../src/protocol_game.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -86,15 +100,6 @@
 		<Unit filename="../src/system.h" />
 		<Unit filename="../src/thread.h" />
 		<Unit filename="../src/types.h" />
-		<Unit filename="../src/unix/linux/network.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../src/unix/system.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../src/unix/thread.c">
-			<Option compilerVar="CC" />
-		</Unit>
 		<Unit filename="../src/util.h" />
 		<Unit filename="../src/work.c">
 			<Option compilerVar="CC" />

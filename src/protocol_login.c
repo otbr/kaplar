@@ -9,8 +9,8 @@
 #define STRING_CLIENT_VERSION "This server requires client version "OTSERV_CLIENT_VERSION"."
 
 // no-op for this protocol
-static void init(){}
-static void shutdown(){}
+static void init(void){}
+static void shutdown(void){}
 static void release_handle(void *handle){}
 static void on_connect(void *handle){}
 static void on_recv_message(void *handle, struct message *msg){}

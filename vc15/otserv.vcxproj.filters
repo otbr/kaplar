@@ -8,104 +8,101 @@
     <Filter Include="win32">
       <UniqueIdentifier>{3ef15e83-bc45-4ae3-89bf-be761967d304}</UniqueIdentifier>
     </Filter>
-    <Filter Include="unix">
-      <UniqueIdentifier>{80adc351-59b9-4a16-ad1f-fde8b52bc384}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\creature.c">
+    <ClCompile Include="..\src\array.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="..\game.c">
+    <ClCompile Include="..\src\cmdline.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="..\main.c">
+    <ClCompile Include="..\src\connection.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="..\scheduler.c">
+    <ClCompile Include="..\src\creature.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="..\work.c">
+    <ClCompile Include="..\src\game.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="..\cmdline.c">
+    <ClCompile Include="..\src\log.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="..\log.c">
+    <ClCompile Include="..\src\main.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="..\win32\thread.c">
+    <ClCompile Include="..\src\message.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\protocol_game.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\protocol_login.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\protocol_old.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\protocol_test.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\scheduler.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\server.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\work.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\win32\network.c">
       <Filter>win32</Filter>
     </ClCompile>
-    <ClCompile Include="..\win32\system.c">
+    <ClCompile Include="..\src\win32\system.c">
       <Filter>win32</Filter>
     </ClCompile>
-    <ClCompile Include="..\message.c">
-      <Filter>core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\win32\network.c">
+    <ClCompile Include="..\src\win32\thread.c">
       <Filter>win32</Filter>
-    </ClCompile>
-    <ClCompile Include="..\server.c">
-      <Filter>core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\array.c">
-      <Filter>core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\protocol_game.c">
-      <Filter>core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\protocol_login.c">
-      <Filter>core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\protocol_old.c">
-      <Filter>core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\connection.c">
-      <Filter>core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\protocol_test.c">
-      <Filter>core</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\thread.h">
+    <ClInclude Include="..\src\array.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\types.h">
+    <ClInclude Include="..\src\cmdline.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\cmdline.h">
+    <ClInclude Include="..\src\connection.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\log.h">
+    <ClInclude Include="..\src\log.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\work.h">
+    <ClInclude Include="..\src\message.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\system.h">
+    <ClInclude Include="..\src\network.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\util.h">
+    <ClInclude Include="..\src\scheduler.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\scheduler.h">
+    <ClInclude Include="..\src\server.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\message.h">
+    <ClInclude Include="..\src\system.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\network.h">
+    <ClInclude Include="..\src\thread.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\server.h">
+    <ClInclude Include="..\src\types.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\array.h">
+    <ClInclude Include="..\src\util.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\connection.h">
+    <ClInclude Include="..\src\work.h">
       <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>

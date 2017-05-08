@@ -8,7 +8,7 @@
 #include "scheduler.h"
 #include "log.h"
 
-#include <stdlib.h>
+#include <stddef.h>
 
 
 #define CONNECTION_OPEN			0x00

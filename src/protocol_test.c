@@ -4,11 +4,11 @@
 #include "message.h"
 #include "log.h"
 
-#include <stdlib.h>
+#include <stddef.h>
 
 // no-op for this protocol
-static void init(){}
-static void shutdown(){}
+static void init(void){}
+static void shutdown(void){}
 static void release_handle(void *handle){}
 
 // forward decl

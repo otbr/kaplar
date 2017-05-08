@@ -1,6 +1,6 @@
 #include "server.h"
 
-#include <stdlib.h>
+#include <stddef.h>
 
 struct protocol protocol_game = {
 	.name = "game",

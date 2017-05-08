@@ -5,7 +5,7 @@
 #include "log.h"
 #include "util.h"
 
-#include <stdlib.h>
+#include <stddef.h>
 
 struct work{
 	void (*fp)(void *);

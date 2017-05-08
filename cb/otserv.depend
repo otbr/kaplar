@@ -1,0 +1,155 @@
+# depslib dependency file v1.0
+1494051197 source:/home/marco/Desktop/kaplar/src/array.c
+	"array.h"
+	"log.h"
+	"thread.h"
+	<stdlib.h>
+	<stdio.h>
+
+1494052482 /home/marco/Desktop/kaplar/src/array.h
+
+1494052482 /home/marco/Desktop/kaplar/src/log.h
+	"types.h"
+	<stdarg.h>
+
+1494052482 /home/marco/Desktop/kaplar/src/types.h
+	<stdint.h>
+	<stdbool.h>
+
+1494052482 /home/marco/Desktop/kaplar/src/thread.h
+
+1494052685 source:/home/marco/Desktop/kaplar/src/cmdline.c
+	"cmdline.h"
+	<stdio.h>
+	<string.h>
+
+1494052482 /home/marco/Desktop/kaplar/src/cmdline.h
+
+1494045826 source:/home/marco/Desktop/kaplar/src/creature.c
+
+1494045826 source:/home/marco/Desktop/kaplar/src/game.c
+
+1494199552 source:/home/marco/Desktop/kaplar/src/connection.c
+	"connection.h"
+	"message.h"
+	"array.h"
+	"server.h"
+	"network.h"
+	"thread.h"
+	"scheduler.h"
+	"log.h"
+	<stddef.h>
+
+1494052745 /home/marco/Desktop/kaplar/src/connection.h
+
+1494052482 /home/marco/Desktop/kaplar/src/message.h
+	"types.h"
+
+1494054345 /home/marco/Desktop/kaplar/src/server.h
+
+1494052482 /home/marco/Desktop/kaplar/src/network.h
+	<errno.h>
+
+1494052482 /home/marco/Desktop/kaplar/src/scheduler.h
+
+1494201105 source:/home/marco/Desktop/kaplar/src/linux/network.c
+	"../network.h"
+	"../array.h"
+	"../log.h"
+	<stddef.h>
+	<unistd.h>
+	<fcntl.h>
+	<netinet/in.h>
+	<sys/socket.h>
+	<sys/epoll.h>
+
+1494054345 source:/home/marco/Desktop/kaplar/src/log.c
+	"log.h"
+	"types.h"
+	<stdio.h>
+	<stdarg.h>
+	<string.h>
+	<time.h>
+
+1494054345 source:/home/marco/Desktop/kaplar/src/main.c
+	"cmdline.h"
+	"work.h"
+	"scheduler.h"
+	"network.h"
+	"server.h"
+	"log.h"
+	"connection.h"
+	<stdlib.h>
+	<stdio.h>
+
+1494054132 /home/marco/Desktop/kaplar/src/work.h
+
+1494054345 source:/home/marco/Desktop/kaplar/src/message.c
+	"message.h"
+	<string.h>
+
+1494197026 source:/home/marco/Desktop/kaplar/src/posix/system.c
+	"../system.h"
+	<time.h>
+	<unistd.h>
+
+1494054132 /home/marco/Desktop/kaplar/src/system.h
+
+1494201105 source:/home/marco/Desktop/kaplar/src/posix/thread.c
+	"../thread.h"
+	"../log.h"
+	<stdlib.h>
+	<pthread.h>
+	<time.h>
+
+1494199589 source:/home/marco/Desktop/kaplar/src/protocol_game.c
+	"server.h"
+	<stddef.h>
+
+1494045826 source:/home/marco/Desktop/kaplar/src/protocol_login.c
+	"server.h"
+	"message.h"
+	"connection.h"
+	<string.h>
+
+1494045826 source:/home/marco/Desktop/kaplar/src/protocol_old.c
+	"server.h"
+
+1494199589 source:/home/marco/Desktop/kaplar/src/protocol_test.c
+	"server.h"
+	"connection.h"
+	"message.h"
+	"log.h"
+	<stddef.h>
+
+1494199589 source:/home/marco/Desktop/kaplar/src/scheduler.c
+	"scheduler.h"
+	"work.h"
+	"array.h"
+	"types.h"
+	"thread.h"
+	"log.h"
+	"system.h"
+	<stddef.h>
+
+1494199589 source:/home/marco/Desktop/kaplar/src/server.c
+	"server.h"
+	"network.h"
+	"message.h"
+	"array.h"
+	"thread.h"
+	"log.h"
+	"scheduler.h"
+	"connection.h"
+	<stddef.h>
+
+1494199597 source:/home/marco/Desktop/kaplar/src/work.c
+	"work.h"
+	"thread.h"
+	"system.h"
+	"log.h"
+	"util.h"
+	<stddef.h>
+
+1494054132 /home/marco/Desktop/kaplar/src/util.h
+

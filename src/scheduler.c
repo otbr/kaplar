@@ -7,7 +7,7 @@
 #include "log.h"
 #include "system.h"
 
-#include <stdlib.h>
+#include <stddef.h>
 
 struct sch_entry{
 	long time;

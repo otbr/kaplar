@@ -8,7 +8,7 @@
 #include "scheduler.h"
 #include "connection.h"
 
-#include <stdlib.h>
+#include <stddef.h>
 
 #define SERVICE_OPEN	0x00
 #define SERVICE_CLOSED	0x01
@@ -121,7 +121,12 @@ void server_run()
 
 	// network loop
 	running = 1;
-	while(running != 0) net_work();
+	while(running != 0){
+		// net_work returning -1 means the net interface
+		// is no longer usable and needs to be shutdown
+		if(net_work() == -1)
+			running = 0;
+	}
 
 
 	// close services
