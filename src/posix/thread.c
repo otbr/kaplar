@@ -33,6 +33,7 @@ int thread_create(struct thread **thr, void (*fp)(void *), void *arg)
 	int err;
 
 	(*thr) = malloc(sizeof(struct thread));
+	(*thr)->flags = 0;
 	(*thr)->fp = fp;
 	(*thr)->arg = arg;
 	// thread is joinable by default so there is no need to set attributes

@@ -20,7 +20,7 @@
 
 #define RD_TIMEOUT 30000 // 30sec
 #define WR_TIMEOUT 30000 // 30sec
-#define MAX_OUTPUT 32
+#define MAX_OUTPUT 8
 struct connection{
 	struct socket		*sock;
 	long			flags;
@@ -365,7 +365,7 @@ struct message *connection_get_output_message(struct connection *conn)
 	mutex_unlock(conn->lock);
 
 	// setup message to start writing
-	message_start(msg);
+	message_init(msg);
 	return msg;
 }
 
@@ -374,7 +374,9 @@ void connection_send(struct connection *conn, struct message *msg)
 	struct message **it;
 
 	mutex_lock(conn->lock);
-	message_add_header(msg);
+	// prepare message to send
+	conn->protocol->on_send_message(msg);
+
 	if(conn->output_queue == NULL){
 		// add message to output queue
 		msg->next = NULL;
@@ -386,8 +388,8 @@ void connection_send(struct connection *conn, struct message *msg)
 
 		// retart write chain
 		conn->ref_count += 1;
-		if(net_async_write(conn->sock, msg->buffer, msg->length+2,
-				on_write, conn) != 0){
+		if(net_async_write(conn->sock, (msg->buffer + MESSAGE_MAX_HEADER_LEN - msg->header_length),
+				(msg->length + msg->header_length), on_write, conn) != 0){
 			mutex_unlock(conn->lock);
 			connection_close(conn, 1);
 			internal_release(conn);

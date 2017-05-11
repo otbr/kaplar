@@ -26,6 +26,7 @@ struct protocol{
 
 	// event callbacks
 	void (*on_connect)(void*);
+	void (*on_send_message)(void *, struct message*);
 	void (*on_recv_message)(void*, struct message*);
 	void (*on_recv_first_message)(void*, struct message*);
 

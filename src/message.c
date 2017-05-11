@@ -2,12 +2,6 @@
 
 #include <string.h>
 
-/*
-
-todo: create message with different sizes (small, medium, large)
-
-*/
-
 #ifdef __BIG_ENDIAN__
 // the compiler should optimize these away
 static inline uint16_t swap_u16(uint16_t u16)
