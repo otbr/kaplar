@@ -2,7 +2,6 @@
 #define SERVER_H_
 
 #define PROTOCOL_SENDS_FIRST	0x01
-#define PROTOCOL_USE_CHECKSUM	0x02
 
 extern struct protocol protocol_login;
 extern struct protocol protocol_game;
@@ -14,19 +13,19 @@ struct message;
 
 struct protocol{
 	const char *name;
-	int identifier;
-	int flags;
+	long identifier;
+	long flags;
 
-	// callbacks to initialize protocol internals
 	void (*init)(void);
 	void (*shutdown)(void);
 
-	void *(*create_handle)(struct connection*);
-	void (*release_handle)(void*);
+	void *(*handle_create)(struct connection*);
+	void (*handle_release)(void*);
 
-	// event callbacks
+	void (*message_begin)(void*, struct message*);
+	void (*message_end)(void*, struct message*);
+
 	void (*on_connect)(void*);
-	void (*on_send_message)(void *, struct message*);
 	void (*on_recv_message)(void*, struct message*);
 	void (*on_recv_first_message)(void*, struct message*);
 

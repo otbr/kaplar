@@ -71,7 +71,7 @@ void log_add0(const char *tag, const char *fmt, va_list ap)
 	// concatenate log entry
 	entrySize = snprintf(logEntry, 256, "[%s] %8s | %s\n", timeStr, tag, logMessage);
 	if(entrySize <= 0){
-		printf("<ERROR> Failed to concatenate log entry of type %s!\n", tag);
+		printf("<ERROR> Failed to concatenate log entry (tag = %s)!\n", tag);
 		return;
 	}
 

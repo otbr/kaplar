@@ -5,11 +5,13 @@
 struct protocol protocol_game = {
 	.name = "game",
 	.identifier = 0x00,
-	.flags = PROTOCOL_SENDS_FIRST
-		| PROTOCOL_USE_CHECKSUM,
+	.flags = PROTOCOL_SENDS_FIRST,
 
-	.create_handle = NULL,
-	.release_handle = NULL,
+	.handle_create = NULL,
+	.handle_release = NULL,
+
+	.message_begin = NULL,
+	.message_end = NULL,
 
 	.on_connect = NULL,
 	.on_recv_message = NULL,

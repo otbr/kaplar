@@ -8,4 +8,6 @@
 #define ARRAYSIZE(a) (sizeof(a)/sizeof((a)[0]))
 #endif
 
+unsigned long adler32(const unsigned char *buf, unsigned long len);
+
 #endif //UTIL_H_

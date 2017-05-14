@@ -8,31 +8,36 @@
 #define OTSERV_CLIENT_VERSION "8.60"
 #define STRING_CLIENT_VERSION "This server requires client version "OTSERV_CLIENT_VERSION"."
 
-// no-op for this protocol
 static void init(void){}
 static void shutdown(void){}
-static void release_handle(void *handle){}
+
+static void *handle_create(struct connection *conn);
+static void handle_release(void *handle){}
+
+static void message_begin(void *handle, struct message *msg);
+static void message_end(void *handle, struct message *msg);
+
 static void on_connect(void *handle){}
 static void on_recv_message(void *handle, struct message *msg){}
-
-// forward decl
-static void *create_handle(struct connection *conn);
 static void on_recv_first_message(void *handle, struct message *msg);
 
 struct protocol protocol_login = {
-	.name = "login",
-	.identifier = 0x01,
-	.flags = PROTOCOL_USE_CHECKSUM,
+	.name			= "login",
+	.identifier		= 0x01,
+	.flags			= 0,
 
-	.init = init,
-	.shutdown = shutdown,
+	.init			= init,
+	.shutdown		= shutdown,
 
-	.create_handle = create_handle,
-	.release_handle = release_handle,
+	.handle_create		= handle_create,
+	.handle_release		= handle_release,
 
-	.on_connect = on_connect,
-	.on_recv_message = on_recv_message,
-	.on_recv_first_message = on_recv_first_message,
+	.message_begin		= message_begin,
+	.message_end		= message_end,
+
+	.on_connect		= on_connect,
+	.on_recv_message	= on_recv_message,
+	.on_recv_first_message	= on_recv_first_message,
 };
 
 static void disconnect(struct connection *conn, const char *message)
@@ -46,9 +51,32 @@ static void disconnect(struct connection *conn, const char *message)
 	connection_close(conn, 0);
 }
 
-static void *create_handle(struct connection *conn)
+static void *handle_create(struct connection *conn)
 {
 	return conn;
+}
+
+static void message_begin(void *handle, struct message *msg)
+{
+	msg->length = 0;
+	msg->readpos = 8;
+}
+
+static void message_end(void *handle, struct message *msg)
+{
+	// add original message length
+	msg->readpos = 6;
+	message_add_u16(msg, (uint16_t)msg->length);
+
+	// xtea encrypt message
+
+	// add encrypted message checksum
+	msg->readpos = 2;
+	message_add_u32(msg, 0);
+
+	// add encrypted message length
+	msg->readpos = 0;
+	message_add_u16(msg, (uint16_t)msg->length);
 }
 
 static void on_recv_first_message(void *handle, struct message *msg)

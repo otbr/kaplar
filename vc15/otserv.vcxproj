@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\adler32.c" />
     <ClCompile Include="..\src\array.c" />
     <ClCompile Include="..\src\cmdline.c" />
     <ClCompile Include="..\src\connection.c" />

@@ -64,6 +64,9 @@
     <ClCompile Include="..\src\win32\thread.c">
       <Filter>win32</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\adler32.c">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\array.h">
