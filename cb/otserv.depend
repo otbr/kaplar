@@ -1,35 +1,35 @@
 # depslib dependency file v1.0
-1494051197 source:/home/marco/Desktop/kaplar/src/array.c
+1494845288 source:/home/marco/Desktop/kaplar/src/array.c
 	"array.h"
 	"log.h"
 	"thread.h"
 	<stdlib.h>
 	<stdio.h>
 
-1494052482 /home/marco/Desktop/kaplar/src/array.h
+1494845288 /home/marco/Desktop/kaplar/src/array.h
 
-1494052482 /home/marco/Desktop/kaplar/src/log.h
+1494845288 /home/marco/Desktop/kaplar/src/log.h
 	"types.h"
 	<stdarg.h>
 
-1494052482 /home/marco/Desktop/kaplar/src/types.h
+1494845288 /home/marco/Desktop/kaplar/src/types.h
 	<stdint.h>
 	<stdbool.h>
 
-1494052482 /home/marco/Desktop/kaplar/src/thread.h
+1494845288 /home/marco/Desktop/kaplar/src/thread.h
 
-1494052685 source:/home/marco/Desktop/kaplar/src/cmdline.c
+1494845288 source:/home/marco/Desktop/kaplar/src/cmdline.c
 	"cmdline.h"
 	<stdio.h>
 	<string.h>
 
-1494052482 /home/marco/Desktop/kaplar/src/cmdline.h
+1494845288 /home/marco/Desktop/kaplar/src/cmdline.h
 
-1494045826 source:/home/marco/Desktop/kaplar/src/creature.c
+1494845288 source:/home/marco/Desktop/kaplar/src/creature.c
 
-1494045826 source:/home/marco/Desktop/kaplar/src/game.c
+1494845288 source:/home/marco/Desktop/kaplar/src/game.c
 
-1494199552 source:/home/marco/Desktop/kaplar/src/connection.c
+1494845288 source:/home/marco/Desktop/kaplar/src/connection.c
 	"connection.h"
 	"message.h"
 	"array.h"
@@ -38,19 +38,20 @@
 	"thread.h"
 	"scheduler.h"
 	"log.h"
+	"util.h"
 	<stddef.h>
 
-1494052745 /home/marco/Desktop/kaplar/src/connection.h
+1494845288 /home/marco/Desktop/kaplar/src/connection.h
 
-1494052482 /home/marco/Desktop/kaplar/src/message.h
+1494845288 /home/marco/Desktop/kaplar/src/message.h
 	"types.h"
 
-1494054345 /home/marco/Desktop/kaplar/src/server.h
+1494845288 /home/marco/Desktop/kaplar/src/server.h
 
-1494052482 /home/marco/Desktop/kaplar/src/network.h
+1494845288 /home/marco/Desktop/kaplar/src/network.h
 	<errno.h>
 
-1494052482 /home/marco/Desktop/kaplar/src/scheduler.h
+1494845288 /home/marco/Desktop/kaplar/src/scheduler.h
 
 1494201105 source:/home/marco/Desktop/kaplar/src/linux/network.c
 	"../network.h"
@@ -151,5 +152,8 @@
 	"util.h"
 	<stddef.h>
 
-1494054132 /home/marco/Desktop/kaplar/src/util.h
+1494845288 /home/marco/Desktop/kaplar/src/util.h
+
+1494857394 source:/home/marco/Desktop/kaplar/src/adler32.c
+	<stddef.h>
 

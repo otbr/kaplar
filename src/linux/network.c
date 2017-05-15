@@ -70,7 +70,6 @@ struct socket *net_socket(void)
 {
 	int fd, flags;
 	struct linger linger;
-	struct epoll_event event;
 	struct socket *sock;
 
 	fd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
@@ -114,7 +113,7 @@ struct socket *net_socket(void)
 	sock->event.events = 0;
 	sock->event.data.ptr = sock;
 	sock->remote_addr = NULL;
-	for(i = 0; i < SOCKET_MAX_OPS; i++)
+	for(int i = 0; i < SOCKET_MAX_OPS; i++)
 		sock->ops[i].opcode = OP_FREE;
 	mutex_create(&sock->lock);
 
@@ -186,7 +185,7 @@ int net_work(void)
 	int ret;
 	struct epoll_event event;
 
-	ret = epoll_wait(epoll_fd, event, 1, WORK_TIMEOUT);
+	ret = epoll_wait(epoll_fd, &event, 1, WORK_TIMEOUT);
 
 	if(ret == 0){
 		// timeout

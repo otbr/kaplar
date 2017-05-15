@@ -38,6 +38,9 @@
 		<Linker>
 			<Add option="-m64" />
 		</Linker>
+		<Unit filename="../src/adler32.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="../src/array.c">
 			<Option compilerVar="CC" />
 		</Unit>
