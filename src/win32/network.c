@@ -10,7 +10,7 @@
 
 #include <stdio.h>
 
-#define OP_FREE		0x00
+#define OP_NONE		0x00
 #define OP_ACCEPT	0x01
 #define OP_READ		0x02
 #define OP_WRITE	0x03
@@ -155,21 +155,11 @@ void net_shutdown()
 struct socket *net_socket()
 {
 	SOCKET fd;
-	struct linger linger;
 	struct socket *sock;
-	int i;
 
 	fd = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if(fd == INVALID_SOCKET){
 		LOG_ERROR("net_socket: failed to create socket (error = %d)", GetLastError());
-		return NULL;
-	}
-
-	linger.l_onoff = 0;
-	linger.l_linger = 0;
-	if(setsockopt(fd, SOL_SOCKET, SO_LINGER, (char *)&linger, sizeof(struct linger)) == SOCKET_ERROR){
-		LOG_ERROR("net_socket: failed to set socket linger option (error = %d)", GetLastError());
-		closesocket(fd);
 		return NULL;
 	}
 
@@ -190,8 +180,8 @@ struct socket *net_socket()
 	sock->fd = fd;
 	sock->local_addr = NULL;
 	sock->remote_addr = NULL;
-	for(i = 0; i < SOCKET_MAX_OPS; i++)
-		sock->ops[i].opcode = OP_FREE;
+	for(int i = 0; i < SOCKET_MAX_OPS; i++)
+		sock->ops[i].opcode = OP_NONE;
 	mutex_create(&sock->lock);
 	return sock;
 }
@@ -218,7 +208,7 @@ struct socket *net_server_socket(int port)
 	}
 
 	if(listen(sock->fd, SOMAXCONN) == SOCKET_ERROR){
-		LOG_ERROR("net_server_socket: failed to listen on server socket (error = %d)", GetLastError());
+		LOG_ERROR("net_server_socket: failed to listen to port %d (error = %d)", port, GetLastError());
 		net_close(sock);
 		return NULL;
 	}
@@ -258,11 +248,9 @@ void net_close(struct socket *sock)
 static struct async_op *get_socket_op(struct socket *sock, int opcode)
 {
 	struct async_op *op = NULL;
-	int i;
-
 	mutex_lock(sock->lock);
-	for(i = 0; i < SOCKET_MAX_OPS; i++){
-		if(sock->ops[i].opcode == OP_FREE){
+	for(int i = 0; i < SOCKET_MAX_OPS; i++){
+		if(sock->ops[i].opcode == OP_NONE){
 			op = &sock->ops[i];
 			op->opcode = opcode;
 			break;
@@ -296,7 +284,7 @@ int net_async_accept(struct socket *sock,
 		error = GetLastError();
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_accept: AcceptEx failed (error = %d)", error);
-			op->opcode = OP_FREE;
+			op->opcode = OP_NONE;
 			return -1;
 		}
 	}
@@ -329,7 +317,7 @@ int net_async_read(struct socket *sock, char *buf, int len,
 		error = GetLastError();
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_read: WSARecv failed (error = %d)", error);
-			op->opcode = OP_FREE;
+			op->opcode = OP_NONE;
 			return -1;
 		}
 	}
@@ -360,7 +348,7 @@ int net_async_write(struct socket *sock, char *buf, int len,
 		error = GetLastError();
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_write: WSASend failed (error = %d)", error);
-			op->opcode = OP_FREE;
+			op->opcode = OP_NONE;
 			return -1;
 		}
 	}
@@ -394,7 +382,7 @@ int net_work()
 		}
 
 		op->complete(op->socket, posix_error(error), bytes_transfered, op->udata);
-		op->opcode = OP_FREE;
+		op->opcode = OP_NONE;
 		return 1;
 	}
 

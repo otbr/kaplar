@@ -42,9 +42,9 @@ struct connection{
 static struct array		*conn_array;
 
 static void internal_release(struct connection *conn);
-static void on_read_length(struct socket *sock, int error, int bytes_transfered, void *udata);
-static void on_read_body(struct socket *sock, int error, int bytes_transfered, void *udata);
-static void on_write(struct socket *sock, int error, int bytes_transfered, void *udata);
+static void on_read_length(struct socket *sock, int error, int transfered, void *udata);
+static void on_read_body(struct socket *sock, int error, int transfered, void *udata);
+static void on_write(struct socket *sock, int error, int transfered, void *udata);
 
 static void read_timeout_handler(void *arg)
 {
@@ -79,7 +79,7 @@ static void write_timeout_handler(void *arg)
 	LOG("write timeout returned");
 }
 
-static void on_read_length(struct socket *sock, int error, int bytes_transfered, void *udata)
+static void on_read_length(struct socket *sock, int error, int transfered, void *udata)
 {
 	struct connection	*conn = udata;
 	struct message		*msg = &conn->input;
@@ -89,8 +89,9 @@ static void on_read_length(struct socket *sock, int error, int bytes_transfered,
 	// will have only the length of the body
 	msg->readpos = 0;
 	msg->length = message_get_u16(msg);
-	if((conn->flags & (CONNECTION_CLOSED | CONNECTION_CLOSING)) == 0 && error == 0
-			&& msg->length > 0 && msg->length+2 <= MESSAGE_BUFFER_LEN){
+	if((conn->flags & (CONNECTION_CLOSED | CONNECTION_CLOSING)) == 0
+			&& error == 0 && transfered > 0 && msg->length > 0
+			&& msg->length+2 <= MESSAGE_BUFFER_LEN){
 
 		// NOTE: need to reschedule read timeout only
 		// after reading the body and not here
@@ -112,7 +113,7 @@ static void on_read_length(struct socket *sock, int error, int bytes_transfered,
 	LOG("read length returned");
 }
 
-static void on_read_body(struct socket *sock, int error, int bytes_transfered, void *udata)
+static void on_read_body(struct socket *sock, int error, int transfered, void *udata)
 {
 	struct connection	*conn = udata;
 	struct message		*msg = &conn->input;
@@ -123,7 +124,7 @@ static void on_read_body(struct socket *sock, int error, int bytes_transfered, v
 	mutex_lock(conn->lock);
 	// check for errors or if the connection is closed/closing
 	if((conn->flags & (CONNECTION_CLOSED | CONNECTION_CLOSING)) == 0
-			&& error == 0){
+			&& error == 0 && transfered > 0){
 		// check if the message has a checksum
 		checksum = adler32(msg->buffer + 6, msg->length - 4);
 		if(checksum != message_get_u32(msg))
@@ -174,7 +175,7 @@ close:
 	LOG("read body returned");
 }
 
-static void on_write(struct socket *sock, int error, int bytes_transfered, void *udata)
+static void on_write(struct socket *sock, int error, int transfered, void *udata)
 {
 	struct connection	*conn = udata;
 	struct message		*msg, *next;
@@ -182,7 +183,8 @@ static void on_write(struct socket *sock, int error, int bytes_transfered, void 
 
 	mutex_lock(conn->lock);
 	// check for errors or if the connection is closed
-	if((conn->flags & CONNECTION_CLOSED) == 0 && error == 0){
+	if((conn->flags & CONNECTION_CLOSED) == 0
+			&& error == 0 && transfered > 0){
 		// pop message from queue and free it
 		msg = conn->output_queue;
 		next = msg->next;
