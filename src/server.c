@@ -119,6 +119,8 @@ void server_run()
 		}
 	}
 
+	LOG("server running...");
+
 	// network loop
 	running = 1;
 	while(running != 0){
@@ -127,6 +129,8 @@ void server_run()
 		if(net_work() == -1)
 			running = 0;
 	}
+
+	LOG("server closing...");
 
 
 	// close services

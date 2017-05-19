@@ -26,3 +26,7 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c $(DEPS)
 
 kaplar: $(OBJ)
 	$(CC) -s -o build/$@ $^ $(LIBS) $(DEFS) $(CFLAGS)
+
+.PHONY: clean
+clean:
+	@rm -fR build

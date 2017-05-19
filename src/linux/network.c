@@ -10,6 +10,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
+#include <string.h>
 
 #define OP_NONE		0x00
 #define OP_ACCEPT	0x01
@@ -79,28 +80,120 @@ static struct async_op *pop_deferred(void)
 	return op;
 }
 
-static struct async_op *get_op(struct socket *sock, int opcode)
+static int setoptions(int fd)
+{
+	int flags;
+	struct linger linger;
+
+	// set linger
+	linger.l_onoff = 0;
+	linger.l_linger = 0;
+	if(setsockopt(fd, SOL_SOCKET, SO_LINGER, (void *)&linger, sizeof(struct linger)) == -1){
+		LOG_ERROR("setoptions: failed to set socket linger option (error = %d)", errno);
+		return -1;
+	}
+
+	// set nonblocking
+	flags = fcntl(fd, F_GETFL);
+	if(flags == -1){
+		LOG_ERROR("setoptions: failed to get socket flags (error = %d)", errno);
+		return -1;
+	}
+	if(fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1){
+		LOG_ERROR("setoptions: failed to set nonblocking mode (error = %d)", errno);
+		return -1;
+	}
+
+	return 0;
+}
+
+static struct socket *socket_handle(int fd)
+{
+	struct socket *sock;
+
+	// create handle
+	sock = array_locked_new(sock_array);
+	if(sock == NULL){
+		LOG_ERROR("net_socket: socket array is at maximum capacity (%d)", MAX_SOCKETS);
+		return NULL;
+	}
+
+	// initialize handle
+	sock->fd = fd;
+	sock->rd_queue = NULL;
+	sock->wr_queue = NULL;
+	//memset(&sock->addr, 0, sizeof(struct sockaddr));
+	for(int i = 0; i < SOCKET_MAX_OPS; i++)
+		sock->ops[i].opcode = OP_NONE;
+	mutex_create(&sock->lock);
+	return sock;
+}
+
+static void socket_release(struct socket *sock)
+{
+	close(sock->fd);
+	mutex_destroy(sock->lock);
+	array_locked_del(sock_array, sock);
+}
+
+static struct async_op *socket_op(struct socket *sock, int opcode)
 {
 	struct async_op *op = NULL;
 	for(int i = 0; i < SOCKET_MAX_OPS; i++){
 		if(sock->ops[i].opcode == OP_NONE){
 			op = &sock->ops[i];
 			op->opcode = opcode;
+			op->next = NULL;
 			break;
 		}
 	}
 	return op;
 }
 
-static int try_complete_accept(struct socket *sock, struct socket **nsock, struct async_op *op)
+static void cancel_rd_ops(struct socket *sock)
 {
-	int ret, error;
+	struct async_op *op;
+	while(1){
+		mutex_lock(sock->lock);
+		if((op = sock->rd_queue) == NULL){
+			mutex_unlock(sock->lock);
+			break;
+		}
+		sock->rd_queue = op->next;
+		mutex_unlock(sock->lock);
+
+		op->error = ECANCELED;
+		defer_completion(op);
+	}
+}
+
+static void cancel_wr_ops(struct socket *sock)
+{
+	struct async_op *op;
+	while(1){
+		mutex_lock(sock->lock);
+		if((op = sock->wr_queue) == NULL){
+			mutex_unlock(sock->lock);
+			break;
+		}
+		sock->wr_queue = op->next;
+		mutex_unlock(sock->lock);
+
+		op->error = ECANCELED;
+		defer_completion(op);
+	}
+}
+
+static int try_complete_accept(struct socket *sock, struct async_op *op)
+{
+	int fd, error;
+	struct epoll_event event;
 	struct sockaddr addr;
 	socklen_t addrlen;
 
 	addrlen = sizeof(struct sockaddr);
-	ret = accept(sock->fd, &addr, &addrlen);
-	if(ret == -1){
+	fd = accept(sock->fd, &addr, &addrlen);
+	if(fd == -1){
 		error = errno;
 		if(error == EWOULDBLOCK)
 			return -1;
@@ -108,8 +201,34 @@ static int try_complete_accept(struct socket *sock, struct socket **nsock, struc
 		return 0;
 	}
 
-	// TODO: create socket with existing fd
+	// set socket options
+	if(setoptions(fd) == -1){
+		LOG_ERROR("try_complete_accept: failed to set new socket options");
+		close(fd);
+		op->error = EAGAIN;
+		return 0;
+	}
 
+	op->socket = socket_handle(fd);
+	if(op->socket == NULL){
+		LOG_ERROR("try_complete_accept: failed to create new socket handle");
+		close(fd);
+		op->error = EAGAIN;
+		return 0;
+	}
+
+	// copy address to socket
+	memcpy(&op->socket->addr, &addr, sizeof(struct sockaddr));
+
+	event.events = EPOLLET | EPOLLIN | EPOLLOUT;
+	event.data.ptr = op->socket;
+	if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event) == -1){
+		LOG_ERROR("try_complete_accept: failed to add new socket to epoll");
+		socket_release(op->socket);
+		op->socket = NULL;
+		op->error = EAGAIN;
+		return 0;
+	}
 	return 0;
 }
 
@@ -155,7 +274,7 @@ int net_init(void)
 	sock_array = array_create(MAX_SOCKETS, sizeof(struct socket));
 	array_init_lock(sock_array);
 
-	// create deferred list lock
+	// init deferred list
 	deferred_head = NULL;
 	deferred_tail = NULL;
 	mutex_create(&deferred_lock);
@@ -180,11 +299,10 @@ void net_shutdown(void)
 	}
 }
 
-struct socket *net_socket()
+struct socket *net_socket(void)
 {
-	int fd, flags;
+	int fd;
 	struct epoll_event event;
-	struct linger linger;
 	struct socket *sock;
 
 	fd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
@@ -193,51 +311,25 @@ struct socket *net_socket()
 		return NULL;
 	}
 
-	// set linger
-	linger.l_onoff = 0;
-	linger.l_linger = 0;
-	if(setsockopt(fd, SOL_SOCKET, SO_LINGER, (void *)&linger, sizeof(struct linger)) == -1){
-		LOG_ERROR("net_socket: failed to set socket linger option (error = %d", errno);
+	if(setoptions(fd) == -1){
+		LOG_ERROR("net_socket: failed to set socket options");
 		close(fd);
 		return NULL;
 	}
 
-	// set nonblocking
-	flags = fcntl(fd, F_GETFL);
-	if(flags == -1){
-		LOG_ERROR("net_socket: failed to get socket flags (error = %d)", errno);
-		close(fd);
-		return NULL;
-	}
-	if(fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1){
-		LOG_ERROR("net_socket: failed to set nonblocking mode (error = %d)", errno);
-		close(fd);
-		return NULL;
-	}
-
-	// create socket handle
-	sock = array_locked_new(sock_array);
+	sock = socket_handle(fd);
 	if(sock == NULL){
-		LOG_ERROR("net_socket: socket array is at maximum capacity (%d)", MAX_SOCKETS);
+		LOG_ERROR("net_socket: failed to create socket handle");
 		close(fd);
 		return NULL;
 	}
 
-	// initialize socket
-	sock->fd = fd;
-	sock->rd_queue = NULL;
-	sock->wr_queue = NULL;
-	//memset(&sock->addr, 0, sizeof(struct sockaddr));
-	for(int i = 0; i < SOCKET_MAX_OPS; i++)
-		sock->ops[i].opcode = OP_NONE;
-	mutex_create(&sock->lock);
-
-	// add socket to epoll set
+	// add socket to epoll
 	event.events = EPOLLET | EPOLLIN | EPOLLOUT;
 	event.data.ptr = sock;
 	if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event) == -1){
-		LOG_ERROR("net_socket1: failed to add socket to epoll (error = %d)", errno);
-		net_close(sock);
+		LOG_ERROR("net_socket: failed to add socket to epoll (error = %d)", errno);
+		socket_release(sock);
 		return NULL;
 	}
 
@@ -246,23 +338,20 @@ struct socket *net_socket()
 
 struct socket *net_server_socket(int port)
 {
+	int fd;
 	struct socket *sock;
 	struct epoll_event event;
 	struct sockaddr_in addr;
 
-	// create socket
-	sock = net_socket();
-	if(sock == NULL){
-		LOG_ERROR("net_server_socket: failed to create socket");
+	fd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+	if(fd == -1){
+		LOG_ERROR("net_server_socket: failed to create socket (error = %d)", errno);
 		return NULL;
 	}
 
-	// change epoll events to only read
-	event.events = EPOLLET | EPOLLIN;
-	event.data.ptr = sock;
-	if(epoll_ctl(epoll_fd, EPOLL_CTL_MOD, sock->fd, &event) == -1){
-		LOG_ERROR("net_server_socket: failed to modify epoll events (error = %d)", errno);
-		net_close(sock);
+	if(setoptions(fd) == -1){
+		LOG_ERROR("net_server_socket: failed to initialize socket");
+		close(fd);
 		return NULL;
 	}
 
@@ -270,16 +359,33 @@ struct socket *net_server_socket(int port)
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
 	addr.sin_addr.s_addr = INADDR_ANY;
-	if(bind(sock->fd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == -1){
+	if(bind(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == -1){
 		LOG_ERROR("net_server_socket: failed to bind socket to port %d (error = %d)", port, errno);
-		net_close(sock);
+		close(fd);
 		return NULL;
 	}
 
 	// listen
-	if(listen(sock->fd, SOMAXCONN) == -1){
+	if(listen(fd, SOMAXCONN) == -1){
 		LOG_ERROR("net_server_socket: failed to listen to port %d (error = %d)", port, errno);
-		net_close(sock);
+		close(fd);
+		return NULL;
+	}
+
+	// create socket handle
+	sock = socket_handle(fd);
+	if(sock == NULL){
+		LOG_ERROR("net_server_socket: failed to create socket handle");
+		close(fd);
+		return NULL;
+	}
+
+	// add socket to epoll
+	event.events = EPOLLET | EPOLLIN;
+	event.data.ptr = sock;
+	if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event) == -1){
+		LOG_ERROR("net_server_socket: failed to add socket to epoll (error = %d)", errno);
+		socket_release(sock);
 		return NULL;
 	}
 	return sock;
@@ -294,28 +400,24 @@ unsigned long net_get_remote_address(struct socket *sock)
 void net_socket_shutdown(struct socket *sock, int how)
 {
 	shutdown(sock->fd, how);
+	if(how == NET_SHUT_RD || how == NET_SHUT_RDWR)
+		cancel_rd_ops(sock);
 
-/*
-	if(how == NET_SHUT_RD || how == NET_SHUTRDWR){
-		for(i = 0; i < SOCKET_MAX_OPS; i++){
-			if(sock->ops[i].opcode == OP_READ){
-				//cancel op
-			}
-		}
-	}
-*/
+	if(how == NET_SHUT_WR || how == NET_SHUT_RDWR)
+		cancel_wr_ops(sock);
 }
 
-static void close_operation(struct socket *sock, int error, int transfered, void *udata)
+static void release_operation(struct socket *sock, int error, int transfered, void *udata)
 {
-	close(sock->fd);
-	mutex_destroy(sock->lock);
-	array_locked_del(sock_array, sock);
+	LOG("release operation");
+	socket_release(sock);
 }
 
 void net_close(struct socket *sock)
 {
 	struct async_op *op;
+
+	if(sock == NULL) return;
 
 	// NOTE: after calling net_close, the socket
 	// will be invalid and further calls to async_*
@@ -325,35 +427,57 @@ void net_close(struct socket *sock)
 	if(epoll_ctl(epoll_fd, EPOLL_CTL_DEL, sock->fd, NULL) == -1)
 		LOG_ERROR("net_close: failed to remove socket from epoll set (error = %d)", errno);
 
-	mutex_lock(sock->lock);
 	// cancel queued operations
-	while((op = sock->rd_queue) != NULL){
-		mutex_unlock(sock->lock);
-		op->error = ECANCELED;
-		defer_completion(op);
-		mutex_lock(sock->lock);
-	}
+	cancel_rd_ops(sock);
+	cancel_wr_ops(sock);
 
-	while((op = sock->wr_queue) != NULL){
-		mutex_unlock(sock->lock);
-		op->error = ECANCELED;
-		defer_completion(op);
-		mutex_lock(sock->lock);
-	}
-
-	op = get_op(sock, OP_READ);
-	op->opcode = OP_READ;
-	op->socket = sock;
-	op->complete = close_operation;
+	// adding the release operation last to the deferred list
+	// will make so every previous operation will be completed
+	// before actually releasing the socket resources
+	mutex_lock(sock->lock);
+	op = socket_op(sock, OP_READ);
 	mutex_unlock(sock->lock);
+	op->socket = sock;
+	op->complete = release_operation;
 	defer_completion(op);
 }
 
 int net_async_accept(struct socket *sock,
 		void (*fp)(struct socket*, int, int, void*), void *udata)
 {
-	return -1;
+	struct async_op *op, **it;
+	int defer = 0;
+
+	mutex_lock(sock->lock);
+	op = socket_op(sock, OP_ACCEPT);
+	if(op == NULL){
+		mutex_unlock(sock->lock);
+		LOG_ERROR("net_async_accept: maximum simultaneous operations reached (%d)", SOCKET_MAX_OPS);
+		return -1;
+	}
+	op->socket = NULL;
+	op->error = 0;
+	op->complete = fp;
+	op->udata = udata;
+
+	if(sock->rd_queue == NULL){
+		if(try_complete_accept(sock, op) == 0)
+			defer = 1;
+		else
+			sock->rd_queue = op;
+	}
+	else{
+		it = &sock->rd_queue;
+		while(*it != NULL)
+			it = &(*it)->next;
+		*it = op;
+	}
+	mutex_unlock(sock->lock);
+	if(defer != 0)
+		defer_completion(op);
+	return 0;
 }
+
 int net_async_read(struct socket *sock, char *buf, int len,
 		void (*fp)(struct socket*, int, int, void*), void *udata)
 {
@@ -361,10 +485,10 @@ int net_async_read(struct socket *sock, char *buf, int len,
 	int defer = 0;
 
 	mutex_lock(sock->lock);
-	op = get_op(sock, OP_READ);
+	op = socket_op(sock, OP_READ);
 	if(op == NULL){
-		LOG_ERROR("net_async_read: maximum simultaneous operations reached (%d)", SOCKET_MAX_OPS);
 		mutex_unlock(sock->lock);
+		LOG_ERROR("net_async_read: maximum simultaneous operations reached (%d)", SOCKET_MAX_OPS);
 		return -1;
 	}
 	op->socket = sock;
@@ -390,8 +514,11 @@ int net_async_read(struct socket *sock, char *buf, int len,
 	else{
 		// insert into read queue tail
 		it = &sock->rd_queue;
+		LOG("add to read queue");
 		while(*it != NULL)
 			it = &(*it)->next;
+		LOG("[ok]");
+		*it = op;
 	}
 	mutex_unlock(sock->lock);
 	if(defer != 0)
@@ -401,7 +528,41 @@ int net_async_read(struct socket *sock, char *buf, int len,
 int net_async_write(struct socket *sock, char *buf, int len,
 		void (*fp)(struct socket*, int, int, void*), void *udata)
 {
-	return -1;
+	struct async_op *op, **it;
+	int defer = 0;
+
+	mutex_lock(sock->lock);
+	op = socket_op(sock, OP_WRITE);
+	if(op == NULL){
+		mutex_unlock(sock->lock);
+		LOG_ERROR("net_async_write: maximum simultaneous operations reached (%d)", SOCKET_MAX_OPS);
+		return -1;
+	}
+	op->socket = sock;
+	op->buf = buf;
+	op->len = len;
+	op->error = 0;
+	op->transfered = 0;
+	op->complete = fp;
+	op->udata = udata;
+
+	if(sock->wr_queue == NULL){
+		if(try_complete(sock, op) == 0)
+			defer = 1;
+		else
+			sock->wr_queue = op;
+	}
+	else{
+		// insert into read queue tail
+		it = &sock->wr_queue;
+		while(*it != NULL)
+			it = &(*it)->next;
+		*it = op;
+	}
+	mutex_unlock(sock->lock);
+	if(defer != 0)
+		defer_completion(op);
+	return 0;
 }
 
 int net_work(void)
@@ -422,6 +583,9 @@ int net_work(void)
 	}
 
 	// retrieve epoll events
+	// NOTE: without signals (which is clunky) there is no way to signal
+	// epoll_wait to resume so we cannot set a timout here or else the
+	// deferred operations will stall if there is no event from the epoll
 	ret = epoll_wait(epoll_fd, events, 64, 0);
 	if(ret == -1){
 		LOG_ERROR("net_work: epoll_wait failed (error = %d)", errno);
@@ -434,55 +598,65 @@ int net_work(void)
 
 		// socket ready to read
 		if((events[i].events & EPOLLIN) != 0){
-			mutex_lock(sock->lock);
-			while((op = sock->rd_queue) != NULL){
+			while(1){
+				mutex_lock(sock->lock);
+				// get next operation from the queue
+				if((op = sock->rd_queue) == NULL){
+					mutex_unlock(sock->lock);
+					break;
+				}
+
 				// try to complete the operation
 				if(op->opcode == OP_ACCEPT)
-					ret = try_complete_accept(sock, NULL, op);
+					ret = try_complete_accept(sock, op);
 				else /*if(op->opcode == OP_READ)*/
 					ret = try_complete(sock, op);
 
 				// if operation is not ready for completion,
 				// break the loop
-				if(ret == -1) break;
+				if(ret == -1){
+					mutex_unlock(sock->lock);
+					break;
+				}
 
 				// advance read queue if the operation completed
 				sock->rd_queue = op->next;
-
-				// unlock before completing operation
 				mutex_unlock(sock->lock);
-				op->complete(sock, op->error, op->transfered, op->udata);
-				op->opcode = OP_NONE;
 
-				// lock again for next loop
-				mutex_lock(sock->lock);
+				// complete and release op
+				op->complete(op->socket, op->error, op->transfered, op->udata);
+				op->opcode = OP_NONE;
 			}
-			mutex_unlock(sock->lock);
 		}
 
 		// socket ready to write
 		if((events[i].events & EPOLLOUT) != 0){
-			mutex_lock(sock->lock);
-			while((op = sock->wr_queue) != NULL){
+			while(1){
+				mutex_lock(sock->lock);
+				// get next operation from the queue
+				if((op = sock->wr_queue) == NULL){
+					mutex_unlock(sock->lock);
+					break;
+				}
+
 				// try to complete write
 				ret = try_complete(sock, op);
 
 				// if operation is not ready for completion,
 				// break the loop
-				if(ret == -1) break;
+				if(ret == -1){
+					mutex_unlock(sock->lock);
+					break;
+				}
 
 				// advance write queue if the operation completed
 				sock->wr_queue = op->next;
-
-				// unlock before completing operation
 				mutex_unlock(sock->lock);
+
+				// complete and release op
 				op->complete(sock, op->error, op->transfered, op->udata);
 				op->opcode = OP_NONE;
-
-				// lock again for next loop
-				mutex_lock(sock->lock);
 			}
-			mutex_unlock(sock->lock);
 		}
 	}
 

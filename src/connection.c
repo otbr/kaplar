@@ -84,6 +84,7 @@ static void on_read_length(struct socket *sock, int error, int transfered, void 
 	struct connection	*conn = udata;
 	struct message		*msg = &conn->input;
 
+	LOG("on_read_length: %p, %d, %d, %p", sock, error, transfered, udata);
 	mutex_lock(conn->lock);
 	// the message length on a read operation
 	// will have only the length of the body
@@ -121,6 +122,7 @@ static void on_read_body(struct socket *sock, int error, int transfered, void *u
 	long			proto_id;
 	uint32_t		checksum;
 
+	LOG("on_read_body: %p, %d, %d, %p", sock, error, transfered, udata);
 	mutex_lock(conn->lock);
 	// check for errors or if the connection is closed/closing
 	if((conn->flags & (CONNECTION_CLOSED | CONNECTION_CLOSING)) == 0
@@ -130,7 +132,7 @@ static void on_read_body(struct socket *sock, int error, int transfered, void *u
 		if(checksum != message_get_u32(msg))
 			msg->readpos -= 4;
 		else
-			LOG("valid checksum: %ul", checksum);
+			LOG("valid checksum: %lu", checksum);
 
 		// check if it's the first message
 		if((conn->flags & CONNECTION_FIRST_MSG) == 0){
@@ -181,6 +183,7 @@ static void on_write(struct socket *sock, int error, int transfered, void *udata
 	struct message		*msg, *next;
 	int			close = 1;
 
+	LOG("on_write: %p, %d, %d, %p", sock, error, transfered, udata);
 	mutex_lock(conn->lock);
 	// check for errors or if the connection is closed
 	if((conn->flags & CONNECTION_CLOSED) == 0
