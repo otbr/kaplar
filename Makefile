@@ -4,6 +4,7 @@ OBJDIR	= build/obj
 
 CC	= clang
 CFLAGS	= -std=c99 -O2 -Wall -Wno-pointer-sign
+#CFLAGS	= -std=c99 -g -Wall -Wno-pointer-sign
 DEFS	= -D_XOPEN_SOURCE=700
 LIBS	= -lpthread
 
@@ -26,6 +27,7 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c $(DEPS)
 
 kaplar: $(OBJ)
 	$(CC) -s -o build/$@ $^ $(LIBS) $(DEFS) $(CFLAGS)
+#	$(CC) -o build/$@ $^ $(LIBS) $(DEFS) $(CFLAGS)
 
 .PHONY: clean
 clean:

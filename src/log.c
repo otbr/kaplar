@@ -80,7 +80,7 @@ void log_add0(const char *tag, const char *fmt, va_list ap)
 
 	// if saving, output to log file
 	if(saving){
-		if(fwrite(logEntry, 1, entrySize, file) != 1)
+		if(fwrite(logEntry, entrySize, 1, file) != 1)
 			printf("<ERROR> Failed to write log entry to file! (%s)\n", filename);
 	}
 }

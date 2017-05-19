@@ -138,7 +138,7 @@ struct sch_entry *scheduler_add(long delay, void (*fp)(void *), void *arg)
 	return entry;
 }
 
-void scheduler_remove(struct sch_entry *entry)
+int scheduler_remove(struct sch_entry *entry)
 {
 	struct sch_entry **it;
 
@@ -147,17 +147,19 @@ void scheduler_remove(struct sch_entry *entry)
 	while(*it != NULL && *it != entry)
 		it = &(*it)->next;
 
-	if(*it != NULL && *it == entry){
-		*it = (*it)->next;
-		array_del(sch_array, entry);
-	}
-	else{
+	if(*it == NULL){
+		mutex_unlock(mtx);
 		LOG_WARNING("scheduler_remove: trying to remove invalid entry");
+		return -1;
 	}
+
+	*it = (*it)->next;
+	array_del(sch_array, entry);
 	mutex_unlock(mtx);
+	return 0;
 }
 
-void scheduler_reschedule(long delay, struct sch_entry *entry)
+int scheduler_reschedule(long delay, struct sch_entry *entry)
 {
 	long time;
 	struct sch_entry **it;
@@ -169,34 +171,36 @@ void scheduler_reschedule(long delay, struct sch_entry *entry)
 		it = &(*it)->next;
 
 	// check the entry is valid
-	if(*it != NULL && *it == entry){
-		// remove entry from current position
-		*it = (*it)->next;
-
-		// check if we need to restart iteration
-		time = sys_get_tick_count() + delay;
-		if((*it)->time > time)
-			it = &head;
-
-		// get new position
-		while(*it != NULL && (*it)->time <= time)
-			it = &(*it)->next;
-		// re-insert entry on new position
-		entry->time = time;
-		entry->next = *it;
-		*it = entry;
-
-		// signal scheduler if the head has changed
-		if(*it == head)
-			condvar_signal(cond);
-	}
-	else{
+	if(*it == NULL){
+		mutex_unlock(mtx);
 		LOG_WARNING("scheduler_reschedule: trying to reschedule invalid entry");
+		return -1;
 	}
+
+	// remove entry from current position
+	*it = (*it)->next;
+
+	// check if we need to restart iteration
+	time = sys_get_tick_count() + delay;
+	if((*it)->time > time)
+		it = &head;
+
+	// get new position
+	while(*it != NULL && (*it)->time <= time)
+		it = &(*it)->next;
+	// re-insert entry on new position
+	entry->time = time;
+	entry->next = *it;
+	*it = entry;
+
+	// signal scheduler if the head has changed
+	if(*it == head)
+		condvar_signal(cond);
 	mutex_unlock(mtx);
+	return 0;
 }
 
-void scheduler_pop(struct sch_entry *entry)
+int scheduler_pop(struct sch_entry *entry)
 {
 	struct sch_entry **it;
 
@@ -206,19 +210,20 @@ void scheduler_pop(struct sch_entry *entry)
 	while(*it != NULL && (*it) != entry)
 		it = &(*it)->next;
 
-	if(*it != NULL){
-		// remove it from current position and
-		// put it on top of the list
-		*it = (*it)->next;
-		entry->time = 0;
-		entry->next = head;
-		head = entry;
-
-		// signal scheduler that the head has changed
-		condvar_signal(cond);
-	}
-	else{
+	if(*it == NULL){
+		mutex_unlock(mtx);
 		LOG_WARNING("scheduler_pop: trying to pop invalid entry");
+		return -1;
 	}
+	// remove it from current position and
+	// put it on top of the list
+	*it = (*it)->next;
+	entry->time = 0;
+	entry->next = head;
+	head = entry;
+
+	// signal scheduler that the head has changed
+	condvar_signal(cond);
 	mutex_unlock(mtx);
+	return 0;
 }

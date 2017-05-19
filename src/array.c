@@ -89,11 +89,11 @@ void *array_get(struct array *array, long idx)
 	char *base = array->base;
 	char *ptr = base + (idx * array->stride);
 
-	// check if it's in range
-	if(ptr < base || ptr >= (base + array->capacity))
+	// check if it's in allocated memory
+	if(ptr < base || ptr >= (base + array->offset))
 		return NULL;
 
-	// check if it's not on the freelist
+	// check if it's on the freelist
 	for(it = array->freelist; it != NULL; it = *(void**)it){
 		if(it == ptr)
 			return NULL;
