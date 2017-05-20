@@ -5,12 +5,12 @@
 #include "../thread.h"
 
 #include <stddef.h>
+#include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
-#include <string.h>
+#include <netinet/in.h>
 
 #define OP_NONE		0x00
 #define OP_ACCEPT	0x01
@@ -136,20 +136,6 @@ static void socket_release(struct socket *sock)
 	array_locked_del(sock_array, sock);
 }
 
-static struct async_op *socket_op(struct socket *sock, int opcode)
-{
-	struct async_op *op = NULL;
-	for(int i = 0; i < SOCKET_MAX_OPS; i++){
-		if(sock->ops[i].opcode == OP_NONE){
-			op = &sock->ops[i];
-			op->opcode = opcode;
-			op->next = NULL;
-			break;
-		}
-	}
-	return op;
-}
-
 static void cancel_rd_ops(struct socket *sock)
 {
 	struct async_op *op;
@@ -184,6 +170,22 @@ static void cancel_wr_ops(struct socket *sock)
 	}
 }
 
+// NOTE: must be used INSIDE the socket lock
+static struct async_op *socket_op(struct socket *sock, int opcode)
+{
+	struct async_op *op = NULL;
+	for(int i = 0; i < SOCKET_MAX_OPS; i++){
+		if(sock->ops[i].opcode == OP_NONE){
+			op = &sock->ops[i];
+			op->opcode = opcode;
+			op->next = NULL;
+			break;
+		}
+	}
+	return op;
+}
+
+// NOTE: must be used INSIDE the socket lock
 static int try_complete_accept(struct socket *sock, struct async_op *op)
 {
 	int fd, error;
@@ -232,6 +234,7 @@ static int try_complete_accept(struct socket *sock, struct async_op *op)
 	return 0;
 }
 
+// NOTE: must be used INSIDE the socket lock
 static int try_complete(struct socket *sock, struct async_op *op)
 {
 	int ret, error;

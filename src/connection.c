@@ -11,7 +11,6 @@
 
 #include <stddef.h>
 
-
 #define CONNECTION_OPEN			0x00
 #define CONNECTION_CLOSED		0x01
 #define CONNECTION_CLOSING		0x02
@@ -45,6 +44,50 @@ static void internal_release(struct connection *conn);
 static void on_read_length(struct socket *sock, int error, int transfered, void *udata);
 static void on_read_body(struct socket *sock, int error, int transfered, void *udata);
 static void on_write(struct socket *sock, int error, int transfered, void *udata);
+
+// NOTE: must be used OUTSIDE the connection lock!!
+static void internal_release(struct connection *conn)
+{
+	mutex_lock(conn->lock);
+	conn->ref_count -= 1;
+	if(conn->ref_count <= 0){
+		if(conn->sock != NULL){
+			net_close(conn->sock);
+			conn->sock = NULL;
+		}
+
+		// destroy connection lock
+		mutex_unlock(conn->lock);
+		mutex_destroy(conn->lock);
+
+		// release connection memory
+		array_locked_del(conn_array, conn);
+		LOG("connection released");
+	}
+	else{
+		mutex_unlock(conn->lock);
+	}
+}
+
+// NOTE: must be used INSIDE the connection lock
+static inline
+void cancel_rd_timeout(struct connection *conn)
+{
+	if(scheduler_remove(conn->rd_timeout) == -1)
+		conn->flags |= CONNECTION_RD_TIMEOUT_CANCEL;
+	else
+		conn->ref_count -= 1;
+}
+
+// NOTE: must be used INSIDE the connection lock
+static inline
+void cancel_wr_timeout(struct connection *conn)
+{
+	if(scheduler_remove(conn->wr_timeout) == -1)
+		conn->flags |= CONNECTION_WR_TIMEOUT_CANCEL;
+	else
+		conn->ref_count -= 1;
+}
 
 static void read_timeout_handler(void *arg)
 {
@@ -103,10 +146,7 @@ static void on_read_length(struct socket *sock, int error, int transfered, void 
 
 	}
 
-	if(scheduler_remove(conn->rd_timeout) == -1)
-		conn->flags |= CONNECTION_RD_TIMEOUT_CANCEL;
-	else
-		conn->ref_count -= 1;
+	cancel_rd_timeout(conn);
 	mutex_unlock(conn->lock);
 	connection_close(conn, 0);
 	internal_release(conn);
@@ -166,10 +206,7 @@ static void on_read_body(struct socket *sock, int error, int transfered, void *u
 	}
 
 close:
-	if(scheduler_remove(conn->rd_timeout) == -1)
-		conn->flags |= CONNECTION_RD_TIMEOUT_CANCEL;
-	else
-		conn->ref_count -= 1;
+	cancel_rd_timeout(conn);
 	mutex_unlock(conn->lock);
 	connection_close(conn, 0);
 	internal_release(conn);
@@ -208,10 +245,7 @@ static void on_write(struct socket *sock, int error, int transfered, void *udata
 	}
 
 	// cancel write timeout
-	if(scheduler_remove(conn->wr_timeout) == -1)
-		conn->flags |= CONNECTION_WR_TIMEOUT_CANCEL;
-	else
-		conn->ref_count -= 1;
+	cancel_wr_timeout(conn);
 	mutex_unlock(conn->lock);
 	if(close != 0)
 		connection_close(conn, 1);
@@ -287,8 +321,7 @@ void connection_accept(struct socket *sock, struct protocol *protocol)
 		}
 
 		// if the async read failed, cancel the read timeout
-		if(scheduler_remove(conn->rd_timeout) == -1)
-			conn->flags |= CONNECTION_RD_TIMEOUT_CANCEL;
+		cancel_rd_timeout(conn);
 	}
 
 	// if the scheduler print a warning we know we need
@@ -296,30 +329,6 @@ void connection_accept(struct socket *sock, struct protocol *protocol)
 	mutex_unlock(conn->lock);
 	connection_close(conn, 1);
 	internal_release(conn);
-}
-
-
-static void internal_release(struct connection *conn)
-{
-	mutex_lock(conn->lock);
-	conn->ref_count -= 1;
-	if(conn->ref_count <= 0){
-		if(conn->sock != NULL){
-			net_close(conn->sock);
-			conn->sock = NULL;
-		}
-
-		// destroy connection lock
-		mutex_unlock(conn->lock);
-		mutex_destroy(conn->lock);
-
-		// release connection memory
-		array_locked_del(conn_array, conn);
-		LOG("connection released");
-	}
-	else{
-		mutex_unlock(conn->lock);
-	}
 }
 
 void connection_close(struct connection *conn, int abort)
@@ -392,8 +401,7 @@ void connection_send(struct connection *conn, struct message *msg)
 			}
 
 			// if the async write failed, cancel the write timeout
-			if(scheduler_remove(conn->wr_timeout) == -1)
-				conn->flags |= CONNECTION_WR_TIMEOUT_CANCEL;
+			cancel_wr_timeout(conn);
 		}
 
 		mutex_unlock(conn->lock);
