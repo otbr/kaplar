@@ -394,12 +394,6 @@ struct socket *net_server_socket(int port)
 	return sock;
 }
 
-unsigned long net_get_remote_address(struct socket *sock)
-{
-	if(sock->addr.sa_family != AF_INET) return 0;
-	return ((struct sockaddr_in*)&sock->addr)->sin_addr.s_addr;
-}
-
 void net_socket_shutdown(struct socket *sock, int how)
 {
 	shutdown(sock->fd, how);
@@ -449,7 +443,6 @@ int net_async_accept(struct socket *sock,
 		void (*fp)(struct socket*, int, int, void*), void *udata)
 {
 	struct async_op *op, **it;
-	int defer = 0;
 
 	mutex_lock(sock->lock);
 	op = socket_op(sock, OP_ACCEPT);
@@ -465,7 +458,7 @@ int net_async_accept(struct socket *sock,
 
 	if(sock->rd_queue == NULL){
 		if(try_complete_accept(sock, op) == 0)
-			defer = 1;
+			defer_completion(op);
 		else
 			sock->rd_queue = op;
 	}
@@ -476,8 +469,6 @@ int net_async_accept(struct socket *sock,
 		*it = op;
 	}
 	mutex_unlock(sock->lock);
-	if(defer != 0)
-		defer_completion(op);
 	return 0;
 }
 
@@ -485,7 +476,6 @@ int net_async_read(struct socket *sock, char *buf, int len,
 		void (*fp)(struct socket*, int, int, void*), void *udata)
 {
 	struct async_op *op, **it;
-	int defer = 0;
 
 	mutex_lock(sock->lock);
 	op = socket_op(sock, OP_READ);
@@ -510,29 +500,24 @@ int net_async_read(struct socket *sock, char *buf, int len,
 		// so it will be completed when the socket is ready
 		// to read
 		if(try_complete(sock, op) == 0)
-			defer = 1;
+			defer_completion(op);
 		else
 			sock->rd_queue = op;
 	}
 	else{
 		// insert into read queue tail
 		it = &sock->rd_queue;
-		LOG("add to read queue");
 		while(*it != NULL)
 			it = &(*it)->next;
-		LOG("[ok]");
 		*it = op;
 	}
 	mutex_unlock(sock->lock);
-	if(defer != 0)
-		defer_completion(op);
 	return 0;
 }
 int net_async_write(struct socket *sock, char *buf, int len,
 		void (*fp)(struct socket*, int, int, void*), void *udata)
 {
 	struct async_op *op, **it;
-	int defer = 0;
 
 	mutex_lock(sock->lock);
 	op = socket_op(sock, OP_WRITE);
@@ -551,20 +536,18 @@ int net_async_write(struct socket *sock, char *buf, int len,
 
 	if(sock->wr_queue == NULL){
 		if(try_complete(sock, op) == 0)
-			defer = 1;
+			defer_completion(op);
 		else
 			sock->wr_queue = op;
 	}
 	else{
-		// insert into read queue tail
+		// insert into write queue tail
 		it = &sock->wr_queue;
 		while(*it != NULL)
 			it = &(*it)->next;
 		*it = op;
 	}
 	mutex_unlock(sock->lock);
-	if(defer != 0)
-		defer_completion(op);
 	return 0;
 }
 
@@ -657,11 +640,18 @@ int net_work(void)
 				mutex_unlock(sock->lock);
 
 				// complete and release op
-				op->complete(sock, op->error, op->transfered, op->udata);
+				op->complete(op->socket, op->error, op->transfered, op->udata);
 				op->opcode = OP_NONE;
 			}
 		}
 	}
 
 	return 0;
+}
+
+
+unsigned long net_remote_address(struct socket *sock)
+{
+	if(sock->addr.sa_family != AF_INET) return 0;
+	return ((struct sockaddr_in*)&sock->addr)->sin_addr.s_addr;
 }

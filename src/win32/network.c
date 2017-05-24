@@ -99,6 +99,22 @@ static int load_extensions()
 	return 0;
 }
 
+// NOTE: must be used OUTSIDE the socket lock
+static struct async_op *socket_op(struct socket *sock, int opcode)
+{
+	struct async_op *op = NULL;
+	mutex_lock(sock->lock);
+	for(int i = 0; i < SOCKET_MAX_OPS; i++){
+		if(sock->ops[i].opcode == OP_NONE){
+			op = &sock->ops[i];
+			op->opcode = opcode;
+			break;
+		}
+	}
+	mutex_unlock(sock->lock);
+	return op;
+}
+
 int net_init()
 {
 	int ret;
@@ -215,28 +231,25 @@ struct socket *net_server_socket(int port)
 	return sock;
 }
 
-unsigned long net_get_remote_address(struct socket *sock)
-{
-	if(sock->remote_addr == NULL) return 0;
-	return sock->remote_addr->sin_addr.s_addr;
-}
-
 void net_socket_shutdown(struct socket *sock, int how)
 {
+	struct async_op *op;
+
 	shutdown(sock->fd, how);
-	if(how == NET_SHUT_RD || how == NET_SHUT_RDWR){
-		for(int i = 0; i < SOCKET_MAX_OPS; i++){
-			// operations will be canceled here but
-			// will be released by the work function
-			if(sock->ops[i].opcode == OP_READ)
-				CancelIoEx((HANDLE)sock->fd, (OVERLAPPED*)&sock->ops[i]);
-		}
+	for(int i = 0; i < SOCKET_MAX_OPS; i++){
+		// operations will be canceled here but
+		// will be released by the work function
+		op = &sock->ops[i];
+		if(how == NET_SHUT_RDWR && op->opcode != OP_NONE
+			|| how == NET_SHUT_RD && op->opcode == OP_READ
+			|| how == NET_SHUT_WR && op->opcode == OP_WRITE)
+			CancelIoEx((HANDLE)sock->fd, (OVERLAPPED*)op);
 	}
 }
 
 void net_close(struct socket *sock)
 {
-	// cancel any pending io operations
+	// cancel any pending io operations on the socket
 	CancelIoEx((HANDLE)sock->fd, NULL);
 
 	// release socket resources
@@ -245,30 +258,15 @@ void net_close(struct socket *sock)
 	array_locked_del(sock_array, sock);
 }
 
-static struct async_op *get_socket_op(struct socket *sock, int opcode)
-{
-	struct async_op *op = NULL;
-	mutex_lock(sock->lock);
-	for(int i = 0; i < SOCKET_MAX_OPS; i++){
-		if(sock->ops[i].opcode == OP_NONE){
-			op = &sock->ops[i];
-			op->opcode = opcode;
-			break;
-		}
-	}
-	mutex_unlock(sock->lock);
-	return op;
-}
-
 int net_async_accept(struct socket *sock,
 		void (*fp)(struct socket*, int, int, void*), void *udata)
 {
 	BOOL ret;
-	DWORD bytes_transfered;
+	DWORD transfered;
 	DWORD error;
 	struct async_op *op;
 
-	op = get_socket_op(sock, OP_ACCEPT);
+	op = socket_op(sock, OP_ACCEPT);
 	if(op == NULL){
 		LOG_ERROR("net_async_accept: maximum simultaneous operations reached (%d)", SOCKET_MAX_OPS);
 		return -1;
@@ -279,7 +277,7 @@ int net_async_accept(struct socket *sock,
 	op->udata = udata;
 	ret = _AcceptEx(sock->fd, op->socket->fd, op->socket->addr_buffer, 0,
 		sizeof(struct sockaddr_in) + 16, sizeof(struct sockaddr_in) + 16,
-		&bytes_transfered, (OVERLAPPED*)op);
+		&transfered, (OVERLAPPED*)op);
 	if(ret == FALSE){
 		error = GetLastError();
 		if(error != WSA_IO_PENDING){
@@ -295,7 +293,7 @@ int net_async_read(struct socket *sock, char *buf, int len,
 		void (*fp)(struct socket*, int, int, void*), void *udata)
 {
 	WSABUF data;
-	DWORD bytes_transfered;
+	DWORD transfered;
 	DWORD flags;
 	DWORD error;
 	struct async_op *op;
@@ -304,7 +302,7 @@ int net_async_read(struct socket *sock, char *buf, int len,
 	data.len = len;
 	flags = 0;
 
-	op = get_socket_op(sock, OP_READ);
+	op = socket_op(sock, OP_READ);
 	if(op == NULL){
 		LOG_ERROR("net_async_read: maximum simultaneous operations reached (%d)", SOCKET_MAX_OPS);
 		return -1;
@@ -313,7 +311,7 @@ int net_async_read(struct socket *sock, char *buf, int len,
 	op->socket = sock;
 	op->complete = fp;
 	op->udata = udata;
-	if(WSARecv(sock->fd, &data, 1, &bytes_transfered, &flags, (OVERLAPPED*)op, NULL) == SOCKET_ERROR){
+	if(WSARecv(sock->fd, &data, 1, &transfered, &flags, (OVERLAPPED*)op, NULL) == SOCKET_ERROR){
 		error = GetLastError();
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_read: WSARecv failed (error = %d)", error);
@@ -328,14 +326,14 @@ int net_async_write(struct socket *sock, char *buf, int len,
 		void (*fp)(struct socket*, int, int, void*), void *udata)
 {
 	WSABUF data;
-	DWORD bytes_transfered;
+	DWORD transfered;
 	DWORD error;
 	struct async_op *op;
 
 	data.buf = buf;
 	data.len = len;
 
-	op = get_socket_op(sock, OP_WRITE);
+	op = socket_op(sock, OP_WRITE);
 	if(op == NULL){
 		LOG_ERROR("net_async_write: maximum simultaneous operations reached (%d)", SOCKET_MAX_OPS);
 		return -1;
@@ -344,7 +342,7 @@ int net_async_write(struct socket *sock, char *buf, int len,
 	op->socket = sock;
 	op->complete = fp;
 	op->udata = udata;
-	if(WSASend(sock->fd, &data, 1, &bytes_transfered, 0, (OVERLAPPED*)op, NULL) == SOCKET_ERROR){
+	if(WSASend(sock->fd, &data, 1, &transfered, 0, (OVERLAPPED*)op, NULL) == SOCKET_ERROR){
 		error = GetLastError();
 		if(error != WSA_IO_PENDING){
 			LOG_ERROR("net_async_write: WSASend failed (error = %d)", error);
@@ -357,15 +355,15 @@ int net_async_write(struct socket *sock, char *buf, int len,
 
 int net_work()
 {
-	DWORD bytes_transfered, error;
+	DWORD transfered, error;
 	ULONG_PTR completion_key;
 	struct async_op *op;
 	int dummy;
 	BOOL ret;
 
 	error = NO_ERROR;
-	ret = GetQueuedCompletionStatus(iocp, &bytes_transfered,
-		&completion_key, (OVERLAPPED **)&op, INFINITE);
+	ret = GetQueuedCompletionStatus(iocp, &transfered,
+		&completion_key, (OVERLAPPED **)&op, NET_WORK_TIMEOUT);
 
 	if(ret == FALSE){
 		error = GetLastError();
@@ -381,10 +379,16 @@ int net_work()
 				(struct sockaddr**)&op->socket->remote_addr, &dummy);
 		}
 
-		op->complete(op->socket, posix_error(error), bytes_transfered, op->udata);
+		op->complete(op->socket, posix_error(error), transfered, op->udata);
 		op->opcode = OP_NONE;
 		return 1;
 	}
 
 	return 0;
+}
+
+unsigned long net_remote_address(struct socket *sock)
+{
+	if(sock->remote_addr == NULL) return 0;
+	return sock->remote_addr->sin_addr.s_addr;
 }
