@@ -180,7 +180,14 @@ static struct async_op *socket_op(struct socket *sock, int opcode)
 // NOTE: must be used INSIDE the socket lock
 static void defer_completion(struct socket *sock, struct async_op *op)
 {
-	struct async_op **it = &sock->usr_queue;
+	struct async_op **it;
+
+	// trigger user event if this is the first op
+	// (it doesn't matter the order here because of the lock)
+	if(sock->usr_queue == NULL)
+		trigger_usr(sock);
+
+	it = &sock->usr_queue;
 	while(*it != NULL)
 		it = &(*it)->next;
 	*it = op;
@@ -269,7 +276,7 @@ static int try_complete(struct socket *sock, struct async_op *op)
 int net_init(void)
 {
 	// create kqueue
-	if((kq == kqueue()) == -1){
+	if((kq = kqueue()) == -1){
 		LOG_ERROR("net_init: failed to create kqueue (error = %d)", errno);
 		return -1;
 	}
@@ -454,13 +461,10 @@ int net_async_accept(struct socket *sock,
 	op->udata = udata;
 
 	if(sock->rd_queue == NULL){
-		if(try_complete_accept(sock, op) == 0){
+		if(try_complete_accept(sock, op) == 0)
 			defer_completion(sock, op);
-			trigger_usr(sock);
-		}
-		else{
+		else
 			sock->rd_queue = op;
-		}
 	}
 	else{
 		it = &sock->rd_queue;
@@ -500,7 +504,7 @@ int net_async_read(struct socket *sock, char *buf, int len,
 		// so it will be completed when the socket is ready
 		// to read
 		if(try_complete(sock, op) == 0)
-			defer_completion(op);
+			defer_completion(sock, op);
 		else
 			sock->rd_queue = op;
 	}
@@ -536,7 +540,7 @@ int net_async_write(struct socket *sock, char *buf, int len,
 
 	if(sock->wr_queue == NULL){
 		if(try_complete(sock, op) == 0)
-			defer_completion(op);
+			defer_completion(sock, op);
 		else
 			sock->wr_queue = op;
 	}
@@ -565,7 +569,7 @@ int net_work(void)
 	struct async_op *op;
 
 	// retrieve events
-	ret = kevent(kqueue_fd, 0, NULL, 64, events, &timeout);
+	ret = kevent(kq, NULL, 0, events, 64, &timeout);
 	if(ret == -1){
 		LOG_ERROR("net_work: kevent failed (error = %d)", errno);
 		return -1;
@@ -573,7 +577,7 @@ int net_work(void)
 
 	// process events
 	for(int i = 0; i < ret; i++){
-		sock = events[i].data.ptr;
+		sock = events[i].udata;
 
 		// user event (complete deferred operations)
 		if(events[i].filter == EVFILT_USER){
@@ -588,7 +592,7 @@ int net_work(void)
 
 				// complete and release op
 				op->complete(op->socket, op->error, op->transfered, op->udata);
-				op->opcode = OP_FREE;
+				op->opcode = OP_NONE;
 			}
 		}
 
