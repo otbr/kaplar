@@ -8,7 +8,7 @@
 #include <stddef.h>
 
 struct work{
-	void (*fp)(void *);
+	void (*fp)(void*);
 	void *arg;
 };
 

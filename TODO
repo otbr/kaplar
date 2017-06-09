@@ -1,0 +1,27 @@
+- rename array to mmpool mem_array, mem_pool, mem_chunk or something
+- make an allocator which take N memory_pools
+	- the allocator will have a list with memory pools orderered
+	  by the pool stride
+
+	struct mm_pool *pool0
+		= mm_create_pool(stride0, capacity0);
+	struct mm_pool *pool1
+		= mm_create_pool(stride1, capacity1);
+	mm_add_pool(pool0);
+	mm_add_pool(pool1);
+	mm_alloc(size);
+
+- create work groups
+	void complete(void *grp){
+		work_group_reset(grp);
+		work_dispatch_group(grp);
+	}
+
+	struct work_group *grp
+		= work_create_group();
+
+	work_group_set_completion(complete, grp);
+	work_group_add(grp, work0, arg0);
+	work_group_add(grp, work1, arg1);
+	work_group_add(grp, work2, arg2);
+	work_dispatch_group(grp)
