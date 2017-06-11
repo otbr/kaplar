@@ -1,0 +1,14 @@
+root = true
+
+# unix line feeds
+[*]
+end_of_line = lf
+insert_final_newline = true
+
+# tab size
+[*.{c,h,py}]
+charset = utf-8
+indent_style = tab
+indent_size = 8
+trim_trailing_whitespace = true
+

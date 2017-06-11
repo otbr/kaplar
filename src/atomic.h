@@ -1,6 +1,12 @@
 #ifndef ATOMIC_H_
 #define ATOMIC_H_
 
+// atomic integer type
+// NOTE: it is declared as volatile to prevent
+// the compiler from changing the operation
+// order on the optimizer stage
+typedef volatile int atomic_int;
+
 #if defined(__x86_64__) || defined(__x86_64)		\
 	|| defined(__amd64__) || defined(__amd64)	\
 	|| defined(i386) || defined(__i386)		\
@@ -8,20 +14,21 @@
 	|| defined(__i586__) || defined(__i686__)	\
 	|| defined(__X86__) || defined(_X86_)
 
+
 static inline int
-atomic_load(int *x)
+atomic_load(atomic_int *x)
 {
 	return *x;
 }
 
 static inline void
-atomic_store(int *x, int val)
+atomic_store(atomic_int *x, int val)
 {
 	*x = val;
 }
 
 static inline void
-atomic_add(int *x, int val)
+atomic_add(atomic_int *x, int val)
 {
 	__asm__ __volatile__(
 		"lock"			"\n\t"
@@ -32,7 +39,7 @@ atomic_add(int *x, int val)
 }
 
 static inline int
-atomic_xadd(int *x, int val)
+atomic_xadd(atomic_int *x, int val)
 {
 	__asm__ __volatile__(
 		"lock"			"\n\t"
@@ -45,7 +52,7 @@ atomic_xadd(int *x, int val)
 
 
 static inline void
-atomic_sub(int *x, int val)
+atomic_sub(atomic_int *x, int val)
 {
 	__asm__ __volatile__(
 		"lock"			"\n\t"
@@ -56,7 +63,7 @@ atomic_sub(int *x, int val)
 }
 
 static inline int
-atomic_xsub(int *x, int val)
+atomic_xsub(atomic_int *x, int val)
 {
 	__asm__ __volatile__(
 		"lock"			"\n\t"
@@ -68,7 +75,7 @@ atomic_xsub(int *x, int val)
 }
 
 static inline int
-atomic_xchg(int *x, int val)
+atomic_xchg(atomic_int *x, int val)
 {
 	__asm__ __volatile__(
 		"lock"			"\n\t"
@@ -80,7 +87,7 @@ atomic_xchg(int *x, int val)
 }
 
 static inline int
-atomic_cmpxchg(int *x, int cmp, int val)
+atomic_cmpxchg(atomic_int *x, int cmp, int val)
 {
 	__asm__ __volatile__(
 		"lock"			"\n\t"

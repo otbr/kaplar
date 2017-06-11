@@ -5,15 +5,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-static int a_counter	= 0;
-static int counter	= 0;
+static atomic_int acounter = 0;
+static int	  counter  = 0;
 static void test(void *unused)
 {
 	int i;
 
 	(void)unused;
 	for(i = 0; i < 1000; i++){
-		atomic_add(&a_counter, 1);
+		atomic_add(&acounter, 1);
 		counter++;
 	}
 }
@@ -28,7 +28,7 @@ int main(int argc, char **argv)
 		thread_join(thr[i]);
 		thread_release(thr[i]);
 	}
-	LOG("atomic counter = %d", a_counter);
+	LOG("atomic counter = %d", acounter);
 	LOG("non-atomic counter = %d", counter);
 	return 0;
 }

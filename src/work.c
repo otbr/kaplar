@@ -7,11 +7,6 @@
 
 #include <stddef.h>
 
-struct work{
-	void (*fp)(void*);
-	void *arg;
-};
-
 // work ring buffer
 #define MAX_WORK 4096
 static struct work work_pool[MAX_WORK];
@@ -22,35 +17,36 @@ static int pending_work;
 // thread pool
 #define MAX_THREADS 64
 static struct thread *thread_pool[MAX_THREADS];
-static struct mutex *mutex;
+static struct mutex *lock;
 static struct condvar *cond;
 static int thread_count;
 static int running = 0;
 
 
-static void worker_thread(void *arg)
+static void worker_thread(void *unused)
 {
-	struct work wrk;
+	void (*fp)(void*);
+	void *arg;
 	while(running != 0){
 		// retrieve work
-		mutex_lock(mutex);
+		mutex_lock(lock);
 		if(pending_work <= 0){
-			condvar_wait(cond, mutex);
+			condvar_wait(cond, lock);
 			if(pending_work <= 0){
-				mutex_unlock(mutex);
+				mutex_unlock(lock);
 				continue;
 			}
 		}
-		wrk.fp = work_pool[readpos].fp;
-		wrk.arg = work_pool[readpos].arg;
+		fp = work_pool[readpos].fp;
+		arg = work_pool[readpos].arg;
 		++readpos;
 		if(readpos >= MAX_WORK)
 			readpos = 0;
 		--pending_work;
-		mutex_unlock(mutex);
+		mutex_unlock(lock);
 
 		// execute work
-		wrk.fp(wrk.arg);
+		fp(arg);
 	}
 }
 
@@ -61,7 +57,7 @@ void work_init()
 	pending_work = 0;
 
 	// spawn working threads
-	mutex_create(&mutex);
+	mutex_create(&lock);
 	condvar_create(&cond);
 	running = 1;
 	thread_count = MAX(1, MIN(MAX_THREADS, sys_get_cpu_count() - 1));
@@ -74,10 +70,10 @@ void work_init()
 void work_shutdown()
 {
 	// join threads
-	mutex_lock(mutex);
+	mutex_lock(lock);
 	running = 0;
 	condvar_broadcast(cond);
-	mutex_unlock(mutex);
+	mutex_unlock(lock);
 
 	for(long i = 0; i < thread_count; i++){
 		thread_join(thread_pool[i]);
@@ -85,30 +81,63 @@ void work_shutdown()
 	}
 
 	condvar_destroy(cond);
-	mutex_destroy(mutex);
+	mutex_destroy(lock);
 }
 
-void work_dispatch(void (*fp)(void *), void *arg)
+void work_dispatch(void (*fp)(void*), void *arg)
 {
-	//DEBUG_CHECK(running == 0, "work_dispatch: worker threads are not running");
 	if(running == 0){
 		LOG_ERROR("work_dispatch: worker threads not running");
 		return;
 	}
 
-	mutex_lock(mutex);
+	mutex_lock(lock);
 	if(pending_work >= MAX_WORK){
 		LOG_ERROR("work_dispatch: work ring buffer is at maximum capacity (%d)", MAX_WORK);
-		mutex_unlock(mutex);
+		mutex_unlock(lock);
 		return;
 	}
 
+	++pending_work;
 	work_pool[writepos].fp = fp;
 	work_pool[writepos].arg = arg;
 	++writepos;
 	if(writepos >= MAX_WORK)
 		writepos = 0;
-	++pending_work;
 	condvar_signal(cond);
-	mutex_unlock(mutex);
+	mutex_unlock(lock);
 }
+
+
+void work_dispatch_array(int count, int single, struct work *work)
+{
+	if(running == 0){
+		LOG_ERROR("work_dispatch_array: worker threads not running");
+		return;
+	}
+
+	mutex_lock(lock);
+	if(pending_work + count >= MAX_WORK){
+		LOG_ERROR("work_dispatch_array: requested amount of work would case the ring buffer to overflow");
+		mutex_unlock(lock);
+		return;
+	}
+
+	pending_work += count;
+	for(int i = 0; i < count; i++){
+		work_pool[writepos].fp = work->fp;
+		work_pool[writepos].arg = work->arg;
+		// if there is a single work in the array
+		// keep adding it to the work pool, else
+		// advance to the next element
+		if(single == 0)
+			work++;
+
+		writepos++;
+		if(writepos >= MAX_WORK)
+			writepos = 0;
+	}
+	condvar_broadcast(cond);
+	mutex_unlock(lock);
+}
+
