@@ -1,5 +1,11 @@
 
 
+# Makefile build directory
+[Bb]uild/
+[Oo]bj/
+*.o
+*.out
+
 ###########################################################
 ## Ignore Visual Studio temporary files, and build results
 ###########################################################

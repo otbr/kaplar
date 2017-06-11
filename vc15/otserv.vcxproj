@@ -34,13 +34,16 @@
     <ClCompile Include="..\src\protocol_test.c" />
     <ClCompile Include="..\src\scheduler.c" />
     <ClCompile Include="..\src\server.c" />
+    <ClCompile Include="..\src\win32\atomic.c" />
     <ClCompile Include="..\src\win32\network.c" />
     <ClCompile Include="..\src\win32\system.c" />
     <ClCompile Include="..\src\win32\thread.c" />
     <ClCompile Include="..\src\work.c" />
+    <ClCompile Include="..\src\work_group.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\array.h" />
+    <ClInclude Include="..\src\atomic.h" />
     <ClInclude Include="..\src\cmdline.h" />
     <ClInclude Include="..\src\connection.h" />
     <ClInclude Include="..\src\log.h" />
@@ -53,6 +56,7 @@
     <ClInclude Include="..\src\types.h" />
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\work.h" />
+    <ClInclude Include="..\src\work_group.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{58D33E6B-B904-4F64-A9AC-C880B4E14374}</ProjectGuid>

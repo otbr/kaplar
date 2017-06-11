@@ -1,4 +1,4 @@
-#include "../network.h"
+﻿#include "../network.h"
 
 #include "../thread.h"
 #include "../log.h"
@@ -240,9 +240,9 @@ void net_socket_shutdown(struct socket *sock, int how)
 		// operations will be canceled here but
 		// will be released by the work function
 		op = &sock->ops[i];
-		if(how == NET_SHUT_RDWR && op->opcode != OP_NONE
-			|| how == NET_SHUT_RD && op->opcode == OP_READ
-			|| how == NET_SHUT_WR && op->opcode == OP_WRITE)
+		if((how == NET_SHUT_RDWR && op->opcode != OP_NONE)
+			|| (how == NET_SHUT_RD && op->opcode == OP_READ)
+			|| (how == NET_SHUT_WR && op->opcode == OP_WRITE))
 			CancelIoEx((HANDLE)sock->fd, (OVERLAPPED*)op);
 	}
 }

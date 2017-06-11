@@ -1,4 +1,4 @@
-#include "atomic.h"
+﻿#include "atomic.h"
 #include "log.h"
 #include "work.h"
 
@@ -16,17 +16,20 @@ struct work_group{
 
 static void work_group_complete(void *arg)
 {
-	int idx;
+	int idx, counter;
 	struct work_group *grp = arg;
 	if(grp == NULL)
 		return;
-	idx = atomic_xadd(&grp->idx, 1);
+	idx = atomic_fetch_add(&grp->idx, 1);
+	atomic_lwfence();
 	grp->work[idx].fp(grp->work[idx].arg);
 
 	// if the counter reaches zero, all work
 	// has been completed and the complete
 	// routine may be called
-	if(atomic_xsub(&grp->counter, 1) <= 1)
+	counter = atomic_fetch_add(&grp->counter, -1);
+	atomic_lwfence();
+	if(counter <= 1)
 		grp->complete.fp(grp->complete.arg);
 }
 
@@ -62,10 +65,7 @@ void work_group_add(struct work_group *grp, void (*fp)(void*), void *arg)
 
 void work_group_dispatch(struct work_group *grp, void (*fp)(void*), void *arg)
 {
-	struct work work = {
-		.fp = work_group_complete,
-		.arg = grp,
-	};
+	struct work work = {work_group_complete, grp};
 
 	if(fp == NULL){
 		LOG_ERROR("work_group_dispatch: the complete routine must be valid!");
@@ -73,7 +73,8 @@ void work_group_dispatch(struct work_group *grp, void (*fp)(void*), void *arg)
 	}
 	grp->complete.fp = fp;
 	grp->complete.arg = arg;
-	grp->counter = 0;
+	grp->idx = 0;
+	grp->counter = grp->work_count;
 	work_dispatch_array(grp->work_count, 1, &work);
 }
 

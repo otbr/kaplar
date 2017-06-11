@@ -67,6 +67,12 @@
     <ClCompile Include="..\src\adler32.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\work_group.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\win32\atomic.c">
+      <Filter>win32</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\array.h">
@@ -106,6 +112,12 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="..\src\work.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\atomic.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\work_group.h">
       <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>
