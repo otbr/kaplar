@@ -27,6 +27,7 @@ static void worker_thread(void *unused)
 {
 	void (*fp)(void*);
 	void *arg;
+	//struct work_group *grp;
 	while(running != 0){
 		// retrieve work
 		mutex_lock(lock);
@@ -39,6 +40,7 @@ static void worker_thread(void *unused)
 		}
 		fp = work_pool[readpos].fp;
 		arg = work_pool[readpos].arg;
+		//grp = work_pool[readpos].grp;
 		++readpos;
 		if(readpos >= MAX_WORK)
 			readpos = 0;
@@ -47,6 +49,9 @@ static void worker_thread(void *unused)
 
 		// execute work
 		fp(arg);
+
+		// if(grp != NULL)
+		//	work_group_complete(grp);
 	}
 }
 

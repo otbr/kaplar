@@ -56,11 +56,9 @@ MakefileObject = r'''
 '''
 
 DEPS = [
-	"atomic.h",
 	"array.h", "cmdline.h", "connection.h", "log.h",
 	"message.h", "network.h", "scheduler.h", "server.h",
 	"system.h", "thread.h", "types.h", "util.h", "work.h",
-	"work_group.h",
 ]
 
 COMMON = [
@@ -68,7 +66,6 @@ COMMON = [
 	"creature.o", "game.o", "log.o", "main.o", "message.o",
 	"protocol_game.o", "protocol_login.o", "protocol_old.o",
 	"protocol_test.o", "scheduler.o", "server.o", "work.o",
-	"work_group.o",
 ]
 
 WIN32 = [
