@@ -1,7 +1,7 @@
 #include "connection.h"
 
 #include "message.h"
-#include "array.h"
+#include "mmblock.h"
 #include "server.h"
 #include "network.h"
 #include "thread.h"
@@ -38,7 +38,7 @@ struct connection{
 };
 
 #define MAX_CONNECTIONS 2048
-static struct array		*conn_array;
+static struct mmblock		*connblk;
 
 static void internal_release(struct connection *conn);
 static void on_read_length(struct socket *sock, int error, int transfered, void *udata);
@@ -61,7 +61,7 @@ static void internal_release(struct connection *conn)
 		mutex_destroy(conn->lock);
 
 		// release connection memory
-		array_locked_del(conn_array, conn);
+		mmblock_xfree(connblk, conn);
 		LOG("connection released");
 	}
 	else{
@@ -255,8 +255,8 @@ static void on_write(struct socket *sock, int error, int transfered, void *udata
 // connection functions
 void connection_init()
 {
-	conn_array = array_create(MAX_CONNECTIONS, sizeof(struct connection));
-	array_init_lock(conn_array);
+	connblk = mmblock_create(MAX_CONNECTIONS, sizeof(struct connection));
+	mmblock_init_lock(connblk);
 }
 
 void connection_shutdown()
@@ -265,7 +265,8 @@ void connection_shutdown()
 	int i;
 
 	for(i = 0; i < MAX_CONNECTIONS; i++){
-		conn = array_locked_get(conn_array, i);
+		//conn = mmblock_xget(connblk, i);
+		conn = NULL;
 		if(conn != NULL)
 			connection_close(conn, 1);
 	}
@@ -274,7 +275,7 @@ void connection_shutdown()
 	// the read/write handlers release the connection
 	// but it shouldn't be a problem since this will
 	// only be called on cleanup
-	array_destroy(conn_array);
+	mmblock_release(connblk);
 }
 
 void connection_accept(struct socket *sock, struct protocol *protocol)
@@ -282,7 +283,7 @@ void connection_accept(struct socket *sock, struct protocol *protocol)
 	struct connection *conn;
 
 	// initialize connection
-	conn = array_locked_new(conn_array);
+	conn = mmblock_xalloc(connblk);
 	conn->sock = sock;
 	conn->flags = CONNECTION_OPEN;
 	conn->ref_count = 0;

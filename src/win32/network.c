@@ -2,7 +2,7 @@
 
 #include "../thread.h"
 #include "../log.h"
-#include "../array.h"
+#include "../mmblock.h"
 
 #define WIN32_MEAN_AND_LEAN 1
 #include <winsock2.h>
@@ -39,7 +39,7 @@ static LPFN_ACCEPTEX			_AcceptEx;
 static LPFN_GETACCEPTEXSOCKADDRS	_GetAcceptExSockaddrs;
 static struct WSAData	wsa_data;
 static HANDLE		iocp = NULL;
-static struct array	*sock_array = NULL;
+static struct mmblock	*sockblk = NULL;
 
 
 static int posix_error(int error)
@@ -146,17 +146,17 @@ int net_init()
 	}
 
 	// memory for the socket structs
-	sock_array = array_create(MAX_SOCKETS, sizeof(struct socket));
-	array_init_lock(sock_array);
+	sockblk = mmblock_create(MAX_SOCKETS, sizeof(struct socket));
+	mmblock_init_lock(sockblk);
 	return 0;
 }
 
 void net_shutdown()
 {
 	// release resources
-	if(sock_array != NULL){
-		array_destroy(sock_array);
-		sock_array = NULL;
+	if(sockblk != NULL){
+		mmblock_release(sockblk);
+		sockblk = NULL;
 	}
 
 	// close iocp
@@ -185,9 +185,9 @@ struct socket *net_socket()
 		return NULL;
 	}
 
-	sock = array_locked_new(sock_array);
+	sock = mmblock_xalloc(sockblk);
 	if(sock == NULL){
-		LOG_ERROR("net_socket: socket array is at maximum capacity (%d)", MAX_SOCKETS);
+		LOG_ERROR("net_socket: socket memory block is at maximum capacity (%d)", MAX_SOCKETS);
 		closesocket(fd);
 		return NULL;
 	}
@@ -255,7 +255,7 @@ void net_close(struct socket *sock)
 	// release socket resources
 	closesocket(sock->fd);
 	mutex_destroy(sock->lock);
-	array_locked_del(sock_array, sock);
+	mmblock_xfree(sockblk, sock);
 }
 
 int net_async_accept(struct socket *sock,

@@ -2,7 +2,6 @@
 
 #include "network.h"
 #include "message.h"
-#include "array.h"
 #include "thread.h"
 #include "log.h"
 #include "scheduler.h"

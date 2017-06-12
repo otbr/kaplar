@@ -1,6 +1,6 @@
 #include "../network.h"
 
-#include "../array.h"
+#include "../mmblock.h"
 #include "../log.h"
 #include "../thread.h"
 
@@ -45,7 +45,7 @@ struct socket{
 };
 
 static int		kq = -1;
-static struct array	*sock_array = NULL;
+static struct mmblock	*sockblk = NULL;
 
 static int setoptions(int fd)
 {
@@ -79,9 +79,9 @@ static struct socket *socket_handle(int fd)
 	struct socket *sock;
 
 	// create handle
-	sock = array_locked_new(sock_array);
+	sock = mmblock_xalloc(sockblk);
 	if(sock == NULL){
-		LOG_ERROR("net_socket: socket array is at maximum capacity (%d)", MAX_SOCKETS);
+		LOG_ERROR("net_socket: socket memory block is at maximum capacity (%d)", MAX_SOCKETS);
 		return NULL;
 	}
 
@@ -101,7 +101,7 @@ static void socket_release(struct socket *sock)
 {
 	close(sock->fd);
 	mutex_destroy(sock->lock);
-	array_locked_del(sock_array, sock);
+	mmblock_xfree(sockblk, sock);
 }
 
 static inline
@@ -281,17 +281,17 @@ int net_init(void)
 		return -1;
 	}
 
-	// create socket array
-	sock_array = array_create(MAX_SOCKETS, sizeof(struct socket));
-	array_init_lock(sock_array);
+	// create socket memory block
+	sockblk = mmblock_create(MAX_SOCKETS, sizeof(struct socket));
+	mmblock_init_lock(sockblk);
 	return 0;
 }
 
 void net_shutdown(void)
 {
-	if(sock_array != NULL){
-		array_destroy(sock_array);
-		sock_array = NULL;
+	if(sockblk != NULL){
+		mmblock_release(sockblk);
+		sockblk = NULL;
 	}
 
 	if(kq != -1){

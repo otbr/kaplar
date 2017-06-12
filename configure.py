@@ -56,30 +56,32 @@ MakefileObject = r'''
 '''
 
 DEPS = [
-	"atomic.h",
-	"array.h", "cmdline.h", "connection.h", "log.h",
-	"message.h", "network.h", "scheduler.h", "server.h",
-	"system.h", "thread.h", "types.h", "util.h", "work.h",
-	"work_group.h",
+	"atomic.h", "cmdline.h", "connection.h", "log.h",
+	"message.h", "mmblock.h", "mm.h", "network.h",
+	"scheduler.h", "server.h", "system.h", "thread.h",
+	"types.h", "util.h", "work.h", "work_group.h",
 ]
 
 COMMON = [
-	"adler32.o", "array.o", "cmdline.o", "connection.o",
-	"creature.o", "game.o", "log.o", "main.o", "message.o",
+	"adler32.o", "cmdline.o", "connection.o", "log.o",
+	"main.o", "message.o", "mmblock.o", "mm.o",
 	"protocol_game.o", "protocol_login.o", "protocol_old.o",
 	"protocol_test.o", "scheduler.o", "server.o", "work.o",
 	"work_group.o",
 ]
 
 WIN32 = [
+	"win32/atomic.o",
 	"win32/system.o", "win32/thread.o", "win32/network.o",
 ]
 
 LINUX = [
+	"linux/atomic.o",
 	"posix/system.o", "posix/thread.o", "linux/network.o",
 ]
 
 FREEBSD = [
+	"freebsd/atomic.o",
 	"posix/system.o", "posix/thread.o", "freebsd/network.o",
 ]
 

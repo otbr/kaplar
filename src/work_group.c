@@ -10,26 +10,24 @@ struct work_group{
 	struct work	complete;
 	struct work	work[GROUP_MAX_WORK];
 	long		work_count;
-	atomic_int	idx;
-	atomic_int	counter;
+
+	atomic_int	next_work;
+	atomic_int	work_left;
 };
 
 static void work_group_complete(void *arg)
 {
-	int idx, counter;
+	int cur, work_left;
 	struct work_group *grp = arg;
 	if(grp == NULL)
 		return;
-	idx = atomic_fetch_add(&grp->idx, 1);
 	atomic_lwfence();
-	grp->work[idx].fp(grp->work[idx].arg);
-
-	// if the counter reaches zero, all work
-	// has been completed and the complete
-	// routine may be called
-	counter = atomic_fetch_add(&grp->counter, -1);
+	cur = atomic_fetch_add(&grp->next_work, 1);
 	atomic_lwfence();
-	if(counter <= 1)
+	grp->work[cur].fp(grp->work[cur].arg);
+	work_left = atomic_fetch_add(&grp->work_left, -1);
+	atomic_lwfence();
+	if(work_left <= 1)
 		grp->complete.fp(grp->complete.arg);
 }
 
@@ -73,8 +71,8 @@ void work_group_dispatch(struct work_group *grp, void (*fp)(void*), void *arg)
 	}
 	grp->complete.fp = fp;
 	grp->complete.arg = arg;
-	grp->idx = 0;
-	grp->counter = grp->work_count;
+	grp->next_work = 0;
+	grp->work_left = grp->work_count;
 	work_dispatch_array(grp->work_count, 1, &work);
 }
 
