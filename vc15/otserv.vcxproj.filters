@@ -10,19 +10,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\array.c">
-      <Filter>core</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\cmdline.c">
       <Filter>core</Filter>
     </ClCompile>
     <ClCompile Include="..\src\connection.c">
-      <Filter>core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\creature.c">
-      <Filter>core</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\game.c">
       <Filter>core</Filter>
     </ClCompile>
     <ClCompile Include="..\src\log.c">
@@ -73,11 +64,14 @@
     <ClCompile Include="..\src\win32\atomic.c">
       <Filter>win32</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\mm.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\mmblock.c">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\array.h">
-      <Filter>core</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\cmdline.h">
       <Filter>core</Filter>
     </ClInclude>
@@ -118,6 +112,12 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="..\src\work_group.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\mm.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\mmblock.h">
       <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>

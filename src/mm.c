@@ -1,4 +1,4 @@
-#include "mm.h"
+﻿#include "mm.h"
 #include "mmblock.h"
 #include "thread.h"
 #include "log.h"
@@ -98,7 +98,9 @@ void mm_free(void *ptr)
 	// the block, just call free from every
 	// block in the list
 	mutex_lock(lock);
-	for(int i = 0; i < blk_count; i++)
-		mmblock_free(blk_list[i], ptr);
+	for(int i = 0; i < blk_count; i++){
+		if(mmblock_contains(blk_list[i], ptr) == 0)
+			mmblock_free(blk_list[i], ptr);
+	}
 	mutex_unlock(lock);
 }

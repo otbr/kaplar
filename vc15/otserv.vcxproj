@@ -20,14 +20,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\adler32.c" />
-    <ClCompile Include="..\src\array.c" />
     <ClCompile Include="..\src\cmdline.c" />
     <ClCompile Include="..\src\connection.c" />
-    <ClCompile Include="..\src\creature.c" />
-    <ClCompile Include="..\src\game.c" />
     <ClCompile Include="..\src\log.c" />
     <ClCompile Include="..\src\main.c" />
     <ClCompile Include="..\src\message.c" />
+    <ClCompile Include="..\src\mm.c" />
+    <ClCompile Include="..\src\mmblock.c" />
     <ClCompile Include="..\src\protocol_game.c" />
     <ClCompile Include="..\src\protocol_login.c" />
     <ClCompile Include="..\src\protocol_old.c" />
@@ -42,12 +41,13 @@
     <ClCompile Include="..\src\work_group.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\array.h" />
     <ClInclude Include="..\src\atomic.h" />
     <ClInclude Include="..\src\cmdline.h" />
     <ClInclude Include="..\src\connection.h" />
     <ClInclude Include="..\src\log.h" />
     <ClInclude Include="..\src\message.h" />
+    <ClInclude Include="..\src\mm.h" />
+    <ClInclude Include="..\src\mmblock.h" />
     <ClInclude Include="..\src\network.h" />
     <ClInclude Include="..\src\scheduler.h" />
     <ClInclude Include="..\src\server.h" />

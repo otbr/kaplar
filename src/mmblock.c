@@ -1,9 +1,10 @@
-#include "mmblock.h"
+﻿#include "mmblock.h"
 #include "log.h"
 #include "thread.h"
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 struct mmblock{
 	long stride;
@@ -20,7 +21,7 @@ struct mmblock *mmblock_create(long slots, long stride)
 	struct mmblock *blk;
 
 	// properly align stride and data offset to have aligned allocations
-	const static unsigned mask = sizeof(void*) - 1;
+	static const unsigned mask = sizeof(void*) - 1;
 	if((stride & mask) != 0)
 		stride = (stride + mask) & ~mask;
 
@@ -69,20 +70,25 @@ void *mmblock_alloc(struct mmblock *blk)
 
 void mmblock_free(struct mmblock *blk, void *ptr)
 {
-	char *base = blk->base;
-
 	// check if ptr belongs to this block
-	if(ptr < (void*)base || ptr >= (void*)(base + blk->capacity))
+	if(ptr < blk->base || ptr >= (void*)((char*)blk->base + blk->capacity))
 		return;
 
 	// return memory to block
-	if(ptr == (void*)(base + blk->offset - blk->stride)){
+	if(ptr == (void*)((char*)blk->base + blk->offset - blk->stride)){
 		blk->offset -= blk->stride;
 	}
 	else{
 		*(void**)(ptr) = blk->freelist;
 		blk->freelist = ptr;
 	}
+}
+
+int mmblock_contains(struct mmblock *blk, void *ptr)
+{
+	if(ptr >= blk->base && ptr < (void*)((char*)blk->base + blk->capacity))
+		return 0;
+	return -1;
 }
 
 void mmblock_init_lock(struct mmblock *blk)
@@ -110,13 +116,13 @@ void mmblock_xfree(struct mmblock *blk, void *ptr)
 
 void mmblock_report(struct mmblock *blk)
 {
-	void *it;
+	void *ptr;
 	LOG("memory block report:");
 	LOG("\tstride = %ld", blk->stride);
 	LOG("\tcapacity = %ld", blk->capacity);
 	LOG("\toffset = %ld", blk->offset);
 	LOG("\tbase: %p", blk->base);
 	LOG("\tfreelist:");
-	for(it = blk->freelist; it != NULL; it = *(void**)it)
-		LOG("\t\t* %p", it - blk->base);
+	for(ptr = blk->freelist; ptr != NULL; ptr = *(void**)ptr)
+		LOG("\t\t* %p", ptr);
 }
