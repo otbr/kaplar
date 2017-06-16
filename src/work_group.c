@@ -1,6 +1,7 @@
 ﻿#include "atomic.h"
 #include "log.h"
 #include "work.h"
+#include "mm.h"
 
 #include <stdlib.h>
 #include <stddef.h>
@@ -36,17 +37,14 @@ struct work_group *work_group_create()
 {
 	struct work_group *grp;
 
-	// TODO: use general allocator
-	grp = malloc(sizeof(struct work_group));
-
+	grp = mm_alloc(sizeof(struct work_group));
 	grp->work_count = 0;
 	return grp;
 }
 
 void work_group_release(struct work_group *grp)
 {
-	// TODO: use general allocator
-	free(grp);
+	mm_free(grp);
 }
 
 void work_group_add(struct work_group *grp, void (*fp)(void*), void *arg)
